@@ -67,36 +67,36 @@ if __name__ == "__main__":
     # df_val = apply_training_filters(df_val)
     # df_test = apply_training_filters(df_test)
 
-    model_temp = train_lightgbm(df_train, ticker="MIDCAP_IT")
+    model = train_lightgbm(df_train, ticker="MIDCAP_IT")
 
-    df_train_signals = generate_signals(df_train.copy(), model_temp,use_dynamic_threshold=False)
-    train_trades = simulate_trades(df_train_signals, "MIDCAP_IT")
+    # df_train_signals = generate_signals(df_train.copy(), model_temp,use_dynamic_threshold=False)
+    # train_trades = simulate_trades(df_train_signals, "MIDCAP_IT")
 
-    # Label based on profitable trades
-    df_train_labeled = label_profitable_trades(df_train_signals, train_trades)
+    # # Label based on profitable trades
+    # df_train_labeled = label_profitable_trades(df_train_signals, train_trades)
 
     # Final training
-    model = train_lightgbm(df_train_labeled, ticker="MIDCAP_IT")
+    # model = train_lightgbm(df_train_labeled, ticker="MIDCAP_IT")
 
 
     # Step 3: Label validation and test data using simulated trades
     # df_val_signals = generate_signals(df_val.copy(), model,use_dynamic_threshold=False)
 
-    df_val_pred = predict_signal(df_val.copy(), model_temp)
-    df_val_pred["signal"] = 1  # temp signal to simulate all rows
-    val_trades = simulate_trades(df_val_pred, "MIDCAP_IT")
-    df_val_labeled = label_profitable_trades(df_val_pred, val_trades)
+    # df_val_pred = predict_signal(df_val.copy(), model_temp)
+    # df_val_pred["signal"] = 1  # temp signal to simulate all rows
+    # val_trades = simulate_trades(df_val_pred, "MIDCAP_IT")
+    # df_val_labeled = label_profitable_trades(df_val_pred, val_trades)
 
 
     # val_trades = simulate_trades(df_val_signals, "MIDCAP_IT")
     # df_val_labeled = label_profitable_trades(df_val_signals, val_trades)
 
-    df_test_signals = generate_signals(df_test.copy(), model,use_dynamic_threshold=True)
-    test_trades = simulate_trades(df_test_signals, "MIDCAP_IT")
-    df_test_labeled = label_profitable_trades(df_test_signals, test_trades)
+    # df_test_signals = generate_signals(df_test.copy(), model,use_dynamic_threshold=True)
+    # test_trades = simulate_trades(df_test_signals, "MIDCAP_IT")
+    # df_test_labeled = label_profitable_trades(df_test_signals, test_trades)
 
     optimal_threshold = THRESHOLD
-    # df_val_pred = generate_signals(df_val.copy(), model, threshold=optimal_threshold, topk=TOP_K, signal_mode=SIGNAL_MODE)
+    df_val_pred = generate_signals(df_val.copy(), model, threshold=optimal_threshold, topk=TOP_K, signal_mode=SIGNAL_MODE)
     # Compute predicted probabilities
     # df_val_pred["pred_prob"] = model.predict_proba(df_val_pred[model.feature_name_])[:, 1]
 
@@ -108,7 +108,9 @@ if __name__ == "__main__":
         per_ticker_thresholds = {}
 
         for ticker in tickers:
-            val_subset = df_val_labeled[df_val_labeled["ticker"] == ticker]
+            val_subset = df_val_pred[df_val_pred["ticker"] == ticker]
+            # val_subset = df_val_labeled[df_val_labeled["ticker"] == ticker]
+
             # print(f"\n🎯 Ticker: {ticker} — {len(val_subset)} rows")
             # print("Target dist:", val_subset["target"].value_counts().to_dict())
             # print("Pred prob stats:\n", val_subset["pred_prob"].describe())
@@ -137,9 +139,9 @@ if __name__ == "__main__":
             #     return_series=pnl_series
             # )
 
-            val_probs = model_temp.predict_proba(val_subset[model_temp.feature_name_])[:, 1]
+            # val_probs = model_temp.predict_proba(val_subset[model_temp.feature_name_])[:, 1]
 
-            best_row, _ = tune_threshold(val_subset["target"], val_probs)
+            best_row, _ = tune_threshold(val_subset["target"], val_subset["pred_prob"])
             if USE_FIXED_THRESHOLD:
                 per_ticker_thresholds[ticker] = THRESHOLD
                 print(f"⚙️ Using fixed threshold = {THRESHOLD}")
@@ -175,7 +177,9 @@ if __name__ == "__main__":
     results=[]
     print("\n📈 Evaluating on test set per ticker:")
     for test_ticker in tickers:
-        df_ticker_test = df_test_labeled[df_test_labeled["ticker"] == test_ticker].copy()
+        df_ticker_test = df_test[df_test["ticker"] == test_ticker].copy()
+
+        # df_ticker_test = df_test_labeled[df_test_labeled["ticker"] == test_ticker].copy()
         tuned_threshold = per_ticker_thresholds[test_ticker]
 
         df_ticker_test = generate_signals(df_ticker_test, model, threshold=tuned_threshold, signal_mode=SIGNAL_MODE, use_dynamic_threshold=False)
@@ -196,10 +200,13 @@ if __name__ == "__main__":
         _, metrics = analyze_trades(trades_df, test_ticker)
 
         df_ticker_test.set_index("Date", inplace=True)
-        df_eval = df_ticker_test[(df_ticker_test["signal"] == 1) | (df_ticker_test["target"] == 1)].copy()
+        # df_eval = df_ticker_test[(df_ticker_test["signal"] == 1) | (df_ticker_test["target"] == 1)].copy()
 
-        y_true_test = df_eval["target"]
-        y_pred_test = df_eval["signal"]
+        # y_true_test = df_eval["target"]
+        # y_pred_test = df_eval["signal"]
+
+        y_true_test = df_ticker_test["target"]
+        y_pred_test = df_ticker_test["signal"]
         accuracy = accuracy_score(y_true_test, y_pred_test)
         precision = precision_score(y_true_test, y_pred_test, zero_division=0)
         recall = recall_score(y_true_test, y_pred_test, zero_division=0)

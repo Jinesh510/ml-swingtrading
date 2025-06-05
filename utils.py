@@ -178,7 +178,8 @@ def get_feature_columns(target_type=TARGET_TYPE, cap_type=CAP_TYPE, peer_name=No
         ]
 
     ## experiment overriding everything 
-    base_features =['market_volatility',
+    base_features =[
+                    'market_volatility',
                     'nifty_volatility_10d',
                     'market_momentum_20d',
                     'sector_rsi_14',
