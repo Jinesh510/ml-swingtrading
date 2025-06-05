@@ -1,0 +1,22 @@
+({'Total Trades': 20,
+  'Winning Trades': 12,
+  'Losing Trades': 8,
+  'Average P&L (%)': 3.0275,
+  'Median P&L (%)': 10.185,
+  'Max Gain (%)': 14.25,
+  'Max Loss (%)': -11.52,
+  'Avg Holding Days': 31.8,
+  'Exit Reasons': {'profit_target': 11,
+   'trailing_stoploss': 8,
+   'max_hold': 1}},
+        Ticker  Accuracy  Precision  Recall  F1 Score  optimal_threshold  \
+ 0  PERSISTENT      0.65       0.98    0.17       0.3                0.3   
+ 
+    Final Cumulative Return  train_hit_rate  train_sharpe_ratio  \
+ 0                     1.07            0.48                5.09   
+ 
+    train_max_drawdown  train_cagr  test_hit_rate  test_sharpe_ratio  \
+ 0                0.41        0.07            0.6                1.0   
+ 
+    test_max_drawdown  test_cagr  
+ 0               0.26       0.18  )

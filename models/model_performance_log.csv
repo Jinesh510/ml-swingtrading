@@ -1,0 +1,2 @@
+Ticker,Accuracy,Precision,Recall,F1 Score,optimal_threshold,Final Cumulative Return,train_hit_rate,train_sharpe_ratio,train_max_drawdown,train_cagr,test_hit_rate,test_sharpe_ratio,test_max_drawdown,test_cagr
+MPHASIS,0.81,0.72,0.83,0.77,0.4,0.67,0.56,2.22,0.56,0.08,0.47,0.96,0.52,-0.1
