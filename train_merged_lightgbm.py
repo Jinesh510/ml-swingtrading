@@ -15,7 +15,7 @@ def load_merged_stock_data(tickers):
     all_dfs = []
     for ticker in tickers:
         df = load_processed_data(ticker)
-        df["ticker"] = ticker
+        # df["ticker"] = ticker
         all_dfs.append(df)
     return pd.concat(all_dfs, ignore_index=True)
 

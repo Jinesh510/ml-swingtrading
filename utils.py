@@ -29,7 +29,10 @@ def load_processed_data(ticker):
     df = df[df["Date"] >= "2010-01-01"].copy()
 
     # Add advanced features
+    df["ticker"] = ticker
+
     df = add_advanced_features(df, ticker=ticker)
+    df = add_peer_relative_features(df)
     
     lagged = generate_lagged_features(df)
     df = pd.concat([df, lagged], axis=1)
@@ -185,7 +188,9 @@ def get_feature_columns(target_type=TARGET_TYPE, cap_type=CAP_TYPE, peer_name=No
                     'atr_pct',
                     'volume_zscore',
                     'bb_position',
-                    'price_vs_sma_10'
+                    'price_vs_sma_10',
+                    'rel_ret_3d',
+                    'rsi_14_rank_within_peers'
 
     ]
 
@@ -212,8 +217,10 @@ def train_lightgbm(df, ticker):
 
     feature_cols = get_feature_columns(target_type=TARGET_TYPE, cap_type=CAP_TYPE, peer_name=PEER_NAME)
     leakage_cols = drop_target_related_columns(target_type=TARGET_TYPE)
+    # extra_leakage_cols = ["target", "sample_weight"]
+
     extra_ignore = ["Date", "pred_prob", "signal", "rank"]
-    cols_to_ignore = leakage_cols + extra_ignore
+    cols_to_ignore = leakage_cols + extra_ignore 
     # Categorical ticker (applies to both single and merged case)
     if "ticker" in df.columns:
         df["ticker"] = df["ticker"].astype("category")
@@ -223,10 +230,12 @@ def train_lightgbm(df, ticker):
     
     X_train = df[feature_cols]
     y_train = df["target"]
+    # sample_weights = df.get("sample_weight", pd.Series([1.0] * len(df)))
+
     print(f"📊 Features being used for {ticker}: {feature_cols}")
     model = lgb.LGBMClassifier(**LIGHTGBM_PARAMS)
     if "ticker" in feature_cols:
-        model.fit(X_train, y_train, categorical_feature=["ticker"])
+        model.fit(X_train, y_train ,categorical_feature=["ticker"])
     else:
         model.fit(X_train, y_train)
     # model.fit(X_train, y_train)
@@ -689,11 +698,58 @@ def label_profitable_trades(df, trades_df):
     df.loc[df["Date"].isin(profitable_entries), "target"] = 1
     return df
 
+
+
+# def label_profitable_trades(df, trades_df):
+#     """
+#     Assigns target=1 to rows where a trade was entered and ended with positive P&L.
+#     All other rows get target=0. Also assigns sample weights based on P&L magnitude.
+#     """
+#     df = df.copy()
+#     df["Date"] = pd.to_datetime(df["Date"])
+#     df["target"] = 0
+#     df["sample_weight"] = 1.0
+
+#     trades_df = trades_df.copy()
+#     trades_df["Entry Date"] = pd.to_datetime(trades_df["Entry Date"])
+
+#     # Join P&L back to signal dataframe
+#     df = df.merge(
+#         trades_df[["Entry Date", "P&L %"]],
+#         left_on="Date",
+#         right_on="Entry Date",
+#         how="left"
+#     )
+
+#     # Labeling
+#     df.loc[df["P&L %"] > 0, "target"] = 1
+
+#     # Sample weights (for all rows with non-null P&L)
+#     df.loc[df["P&L %"].notnull(), "sample_weight"] = 1 + (df["P&L %"] / 100).clip(lower=0)
+
+#     df.drop(columns=["Entry Date"], inplace=True, errors="ignore")
+#     return df
+
+
 def apply_training_filters(df):
     return df[
         (df["atr_pct"] < 0.04) &
         (df["volume_zscore"] > 0.5) &
         (df["breakout_flag_5d"] == 1)
     ].copy()
+
+def add_peer_relative_features(df):
+    df = df.sort_values(["Date", "ticker"]).copy()
+
+    # rel_ret_3d: 3-day return relative to peer median
+    df["rel_ret_3d"] = df.groupby("Date")["return_3d"].transform(
+        lambda x: x - x.median()
+    )
+
+    # RSI rank within peers
+    df["rsi_14_rank_within_peers"] = df.groupby("Date")["rsi_14"].rank(pct=True)
+
+    return df
+
 
 
