@@ -1,0 +1,59 @@
+# ⛔ Ignore virtual environments
+venv/
+.env/
+
+# 🧹 Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# 💻 OS-specific files
+.DS_Store
+Thumbs.db
+
+# 📓 Jupyter and Notebook checkpoints
+.ipynb_checkpoints/
+
+# 🔒 Secrets and configs
+*.env
+*.secret
+*.pem
+
+# ⚙️ VSCode and Cursor settings
+.vscode/
+cursor.json
+
+# 🧪 Test outputs and coverage
+htmlcov/
+coverage.xml
+*.cover
+*.log
+
+# 🔍 PyInstaller build folders
+build/
+dist/
+*.spec
+
+# 📦 Package files
+*.egg-info/
+.eggs/
+
+# 🐘 SQLite database (if used)
+*.sqlite3
+*.db
+
+# ⚙️ Git
+*.swp
+*.swo
+
+# 📄 Mac metadata
+*.DS_Store
+
+# 🔍 Logs
+*.log
+
+# 📈 Model checkpoints (optional)
+*.ckpt
+*.h5
+*.pth
