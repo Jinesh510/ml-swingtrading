@@ -5,6 +5,8 @@ import pandas as pd
 import pandas_ta as ta
 
 from config import TARGET_TYPE
+import yfinance as yf
+
 
 # def compute_index_features(df):
 #     df["Date"] = pd.to_datetime(df["Date"])
@@ -52,6 +54,16 @@ def compute_index_features(df):
     df["rsi_14"] = ta.rsi(df["Close"], length=14)
     
     return df.dropna().reset_index(drop=True)
+
+
+def load_vix_index():
+    vix_df = pd.read_csv("india_vix.csv", parse_dates=["Date"])
+    vix_df["Date"] = pd.to_datetime(vix_df["Date"], dayfirst=True)
+    vix_df = vix_df.sort_values("Date").drop_duplicates(subset="Date")
+    vix_df = vix_df.reset_index(drop=True)
+    df = vix_df[["Date", "vix"]]
+    return df
+
 
 
 #for small caps

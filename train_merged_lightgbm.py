@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
     model_temp = train_lightgbm(df_train, ticker="MIDCAP_IT")
 
-    df_train_signals = generate_signals(df_train.copy(), model_temp)
+    df_train_signals = generate_signals(df_train.copy(), model_temp,use_dynamic_threshold=False)
     train_trades = simulate_trades(df_train_signals, "MIDCAP_IT")
 
     # Label based on profitable trades
@@ -80,11 +80,11 @@ if __name__ == "__main__":
 
 
     # Step 3: Label validation and test data using simulated trades
-    df_val_signals = generate_signals(df_val.copy(), model)
+    df_val_signals = generate_signals(df_val.copy(), model,use_dynamic_threshold=False)
     val_trades = simulate_trades(df_val_signals, "MIDCAP_IT")
     df_val_labeled = label_profitable_trades(df_val_signals, val_trades)
 
-    df_test_signals = generate_signals(df_test.copy(), model)
+    df_test_signals = generate_signals(df_test.copy(), model,use_dynamic_threshold=True)
     test_trades = simulate_trades(df_test_signals, "MIDCAP_IT")
     df_test_labeled = label_profitable_trades(df_test_signals, test_trades)
 
@@ -170,7 +170,7 @@ if __name__ == "__main__":
         df_ticker_test = df_test_labeled[df_test_labeled["ticker"] == test_ticker].copy()
         tuned_threshold = per_ticker_thresholds[test_ticker]
 
-        df_ticker_test = generate_signals(df_ticker_test, model, threshold=tuned_threshold, signal_mode=SIGNAL_MODE)
+        df_ticker_test = generate_signals(df_ticker_test, model, threshold=tuned_threshold, signal_mode=SIGNAL_MODE, use_dynamic_threshold=False)
         
         pr_auc = plot_precision_recall(df_ticker_test, test_ticker)
         plot_probability_histogram(df_ticker_test, test_ticker, set_name="test")

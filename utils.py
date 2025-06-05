@@ -1,4 +1,4 @@
-from index_utils import compute_index_features
+from index_utils import compute_index_features, load_vix_index
 import pandas as pd
 import numpy as np
 import lightgbm as lgb
@@ -33,6 +33,8 @@ def load_processed_data(ticker):
 
     df = add_advanced_features(df, ticker=ticker)
     df = add_peer_relative_features(df)
+    df = tag_market_regime(df)
+
     
     lagged = generate_lagged_features(df)
     df = pd.concat([df, lagged], axis=1)
@@ -190,7 +192,8 @@ def get_feature_columns(target_type=TARGET_TYPE, cap_type=CAP_TYPE, peer_name=No
                     'bb_position',
                     'price_vs_sma_10',
                     'rel_ret_3d',
-                    'rsi_14_rank_within_peers'
+                    'rsi_14_rank_within_peers',
+                    'vix'
 
     ]
 
@@ -329,6 +332,12 @@ def add_advanced_features(df,ticker):
 
     # Gap (previous close to current open)
     df["gap"] = (df["Open"] - df["Close"].shift(1)) / df["Close"].shift(1)
+
+    #adding vix
+    vix_df = load_vix_index()
+    print("Vix head:",vix_df.head())
+    df = df.merge(vix_df, on="Date", how="left")
+    df["vix"] = df["vix"].fillna(method="ffill")
 
 
     # add nifty and sector features
@@ -493,15 +502,31 @@ def apply_post_prediction_filters(df, prob_col="pred_prob", threshold=THRESHOLD)
     # print(len(df))
     return df
 
-def generate_signals(df, model, threshold=THRESHOLD, topk=TOP_K, signal_mode=SIGNAL_MODE):
+def generate_signals(df, model, threshold=THRESHOLD, topk=TOP_K, signal_mode=SIGNAL_MODE, use_dynamic_threshold=False):
     df = predict_signal(df.copy(), model)
     if signal_mode == "topk":
         df["rank"] = df["pred_prob"].rank(method="first", ascending=False)
         df["signal"] = (df["rank"] <= topk).astype(int)
     else:  # threshold mode
-        df["signal"] = (df["pred_prob"] >= threshold).astype(int)
-    # print(df.columns)
-    # df = apply_post_prediction_filters(df)
+        # df["signal"] = (df["pred_prob"] >= threshold).astype(int)
+
+        # Use dynamic threshold based on regime
+        if use_dynamic_threshold:
+            def get_dynamic_threshold(row):
+                if row["market_regime"] == "bull":
+                    return 0.45
+                elif row["market_regime"] == "bear":
+                    return 0.65
+                else:
+                    return 0.55
+
+            df["dynamic_threshold"] = df.apply(get_dynamic_threshold, axis=1)
+            df["signal"] = (df["pred_prob"] >= df["dynamic_threshold"]).astype(int)
+        else:
+            df["signal"] = (df["pred_prob"] >= threshold).astype(int)
+
+        # df = apply_post_prediction_filters(df)
+
     return df
 
 
@@ -748,6 +773,15 @@ def add_peer_relative_features(df):
 
     # RSI rank within peers
     df["rsi_14_rank_within_peers"] = df.groupby("Date")["rsi_14"].rank(pct=True)
+
+    return df
+
+def tag_market_regime(df):
+    df = df.copy()
+    df["market_regime"] = "neutral"
+
+    df.loc[(df["nifty_ret_3d"] > 0.02) & (df["vix"] < 15), "market_regime"] = "bull"
+    df.loc[(df["nifty_ret_3d"] < -0.02) | (df["vix"] > 18), "market_regime"] = "bear"
 
     return df
 
