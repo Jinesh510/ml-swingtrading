@@ -507,6 +507,8 @@ def generate_signals(df, model, threshold=THRESHOLD, topk=TOP_K, signal_mode=SIG
     if signal_mode == "topk":
         df["rank"] = df["pred_prob"].rank(method="first", ascending=False)
         df["signal"] = (df["rank"] <= topk).astype(int)
+        df["confidence_weight"] = 1.0  # uniform weight
+
     else:  # threshold mode
         # df["signal"] = (df["pred_prob"] >= threshold).astype(int)
 
@@ -520,12 +522,20 @@ def generate_signals(df, model, threshold=THRESHOLD, topk=TOP_K, signal_mode=SIG
                 else:
                     return 0.55
 
-            df["dynamic_threshold"] = df.apply(get_dynamic_threshold, axis=1)
-            df["signal"] = (df["pred_prob"] >= df["dynamic_threshold"]).astype(int)
+            df["threshold"] = df.apply(get_dynamic_threshold, axis=1)
+            # df["signal"] = (df["pred_prob"] >= df["dynamic_threshold"]).astype(int)
         else:
-            df["signal"] = (df["pred_prob"] >= threshold).astype(int)
+            df["threshold"] = threshold
+        
+        df["signal"] = (df["pred_prob"] >= df["threshold"]).astype(int)
 
         # df = apply_post_prediction_filters(df)
+
+        # Confidence weight for signal days only
+        df["confidence_weight"] = 0.0
+        df.loc[df["signal"] == 1, "confidence_weight"] = (
+            df["pred_prob"] - df["threshold"]
+        ) / df["atr_pct"]
 
     return df
 
@@ -589,6 +599,11 @@ def simulate_trades(df, ticker, trailing_stop=TRAILING_STOPLOSS, profit_target=P
                 exit_price = df.iloc[j]["Close"]
                 exit_date = df.iloc[j]["Date"]
             pnl_pct = ((exit_price - entry_price) / entry_price) * 100
+            
+            #confidence based allocation
+            weight = df.iloc[i].get("confidence_weight", 1.0)  # fallback = 1.0
+            weighted_pnl = pnl_pct * weight
+
             holding_days = (pd.to_datetime(exit_date) - pd.to_datetime(entry_date)).days
             trades.append({
                 "Entry Date": entry_date,
@@ -597,7 +612,9 @@ def simulate_trades(df, ticker, trailing_stop=TRAILING_STOPLOSS, profit_target=P
                 "Sell Price": round(exit_price, 2),
                 "P&L %": round(pnl_pct, 2),
                 "holding_days": holding_days,
-                "exit_reason": exit_reason
+                "exit_reason": exit_reason,
+                "confidence_weight": round(weight, 3),
+                "weighted_pnl": round(weighted_pnl, 3)
             })
             last_exit_index = j
 
@@ -716,7 +733,7 @@ def label_profitable_trades(df, trades_df):
     # qualifying_trades = trades_df[(trades_df["P&L %"] >= 0) & (trades_df["exit_reason"] != "max_hold")]
     # qualifying_dates = pd.to_datetime(qualifying_trades["Entry Date"].unique())
 
-    profitable_entries = trades_df[trades_df["P&L %"] > 0]["Entry Date"].unique()
+    profitable_entries = trades_df[trades_df["P&L %"] > 2.0]["Entry Date"].unique()
     # profitable_entries = pd.to_datetime(profitable_entries).normalize()
 
 

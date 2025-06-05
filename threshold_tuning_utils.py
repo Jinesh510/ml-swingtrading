@@ -6,11 +6,15 @@ from sklearn.metrics import precision_score, recall_score, f1_score
 
 def tune_threshold(y_true, y_probs, thresholds=np.arange(0.3, 0.91, 0.05)):
     results = []
+    count = 0
     for t in thresholds:
+        count +=1 
         y_pred = (y_probs >= t).astype(int)
         precision = precision_score(y_true, y_pred, zero_division=0)
         recall = recall_score(y_true, y_pred, zero_division=0)
         f1 = f1_score(y_true, y_pred, zero_division=0)
+        if count < 5:
+            print(f"Threshold: {t} | f1 score:{f1}")
         results.append((t, precision, recall, f1))
 
     results_df = pd.DataFrame(results, columns=["threshold", "precision", "recall", "f1"])

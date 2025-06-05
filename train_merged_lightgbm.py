@@ -80,9 +80,16 @@ if __name__ == "__main__":
 
 
     # Step 3: Label validation and test data using simulated trades
-    df_val_signals = generate_signals(df_val.copy(), model,use_dynamic_threshold=False)
-    val_trades = simulate_trades(df_val_signals, "MIDCAP_IT")
-    df_val_labeled = label_profitable_trades(df_val_signals, val_trades)
+    # df_val_signals = generate_signals(df_val.copy(), model,use_dynamic_threshold=False)
+
+    df_val_pred = predict_signal(df_val.copy(), model_temp)
+    df_val_pred["signal"] = 1  # temp signal to simulate all rows
+    val_trades = simulate_trades(df_val_pred, "MIDCAP_IT")
+    df_val_labeled = label_profitable_trades(df_val_pred, val_trades)
+
+
+    # val_trades = simulate_trades(df_val_signals, "MIDCAP_IT")
+    # df_val_labeled = label_profitable_trades(df_val_signals, val_trades)
 
     df_test_signals = generate_signals(df_test.copy(), model,use_dynamic_threshold=True)
     test_trades = simulate_trades(df_test_signals, "MIDCAP_IT")
@@ -130,8 +137,9 @@ if __name__ == "__main__":
             #     return_series=pnl_series
             # )
 
+            val_probs = model_temp.predict_proba(val_subset[model_temp.feature_name_])[:, 1]
 
-            best_row, _ = tune_threshold(val_subset["target"], val_subset["pred_prob"])
+            best_row, _ = tune_threshold(val_subset["target"], val_probs)
             if USE_FIXED_THRESHOLD:
                 per_ticker_thresholds[ticker] = THRESHOLD
                 print(f"⚙️ Using fixed threshold = {THRESHOLD}")
