@@ -59,7 +59,10 @@ def load_processed_data(ticker):
 
     
     # Add target column based on current TARGET_TYPE
-    df = get_target_definition(df, target_type=TARGET_TYPE)
+    # df = get_target_definition(df, target_type=TARGET_TYPE)
+
+    #multi-class target variable changes
+    df = label_multiclass_excess_return(df)
 
     df = df.dropna().reset_index(drop=True)
     return df
@@ -303,12 +306,28 @@ def load_model(ticker):
     if os.path.exists(model_path):
         return joblib.load(model_path)
     return None
+
+# def predict_signal(df, model):
+#     # Predicts probability of class 1 using the model.
+#     # Assumes model has a predict_proba method.
+#     X = df[model.feature_name_]
+#     df["pred_prob"] = model.predict_proba(X)[:, 1]
+
+#     return df
+
+## multi-class target variable changes
 def predict_signal(df, model):
-    # Predicts probability of class 1 using the model.
-    # Assumes model has a predict_proba method.
+    """
+    Predicts class probabilities using a multiclass model.
+    Uses probability of class 4 (Strong Buy) as pred_prob.
+    """
     X = df[model.feature_name_]
-    df["pred_prob"] = model.predict_proba(X)[:, 1]
+    pred_probs = model.predict_proba(X)  # shape (n_samples, 5)
+    df["pred_class"] = np.argmax(pred_probs, axis=1)
+    df["pred_prob"] = pred_probs[:, 4]  # Use Strong Buy prob for ranking/confidence
     return df
+
+
 def add_advanced_features(df,ticker):
     
     df["return_1d"] = df["Close"].pct_change(1)
@@ -578,7 +597,12 @@ def generate_signals(df, model, threshold=THRESHOLD, topk=TOP_K, signal_mode=SIG
         else:
             df["threshold"] = threshold
         
-        df["signal"] = (df["pred_prob"] >= df["threshold"]).astype(int)
+        # df["signal"] = (df["pred_prob"] >= df["threshold"]).astype(int)
+
+        #multi-class target variable changes
+        # Generate signal if predicted class is Buy (3) or Strong Buy (4) AND confidence > threshold
+        df["signal"] = ((df["pred_class"] >= 3) & (df["pred_prob"] >= df["threshold"])).astype(int)
+
 
         # df = apply_post_prediction_filters(df)
 
@@ -978,3 +1002,37 @@ def merge_sector_features(ticker,df):
             return df
         return df
     return df
+
+def label_multiclass_excess_return(df):
+    """
+    Label targets based on excess 10-day return over sector.
+    Classes:
+    0 = Strong Sell (<= -3%)
+    1 = Sell (-3% to -1%)
+    2 = Hold (-1% to +1%)
+    3 = Buy (+1% to +3%)
+    4 = Strong Buy (> +3%)
+    """
+    df = df.dropna(subset=["return_10d", "sector_ret_10d"])
+    excess_ret = df["return_10d"] - df["sector_ret_10d"]
+    bins = [-float("inf"), -0.03, -0.01, 0.01, 0.03, float("inf")]
+    labels = [0, 1, 2, 3, 4]  # Class labels
+    df["target"] = pd.cut(excess_ret, bins=bins, labels=labels)
+    df["target"] = df["target"].astype(float).fillna(-1).astype(int)
+
+    return df
+
+def extract_signals_from_multiclass_preds(pred_probs):
+    """
+    Convert predicted class probabilities to discrete signal.
+    Args:
+        pred_probs: (n_samples, 5) array of class probabilities
+
+    Returns:
+        signal: 1 if predicted class is Buy or Strong Buy
+        confidence: probability of Strong Buy
+    """
+    pred_class = np.argmax(pred_probs, axis=1)
+    signal = (pred_class >= 3).astype(int)
+    confidence = pred_probs[:, 4]  # probability of class 4 (Strong Buy)
+    return signal, confidence

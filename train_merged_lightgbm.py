@@ -1,10 +1,10 @@
 import os
 from matplotlib import pyplot as plt
 import pandas as pd
-from sklearn.metrics import accuracy_score, auc, f1_score, precision_recall_curve, precision_score, recall_score
+from sklearn.metrics import accuracy_score, auc, classification_report, f1_score, precision_recall_curve, precision_score, recall_score
 from sklearn.model_selection import train_test_split
 from config import PLOTS_DIR, PROB_DIST_DIR, RESULTS_DIR, SIGNAL_MODE, THRESHOLD, TOP_K, TRADES_DIR, USE_FIXED_THRESHOLD
-from threshold_tuning_utils import tune_threshold
+from threshold_tuning_utils import tune_threshold_multiclass
 # from threshold_tuning_utils import walk_forward_threshold_tuning
 from utils import apply_training_filters, generate_signals, label_profitable_trades, load_processed_data, simulate_trades
 from utils import train_lightgbm
@@ -20,9 +20,16 @@ def load_merged_stock_data(tickers):
     return pd.concat(all_dfs, ignore_index=True)
 
 def plot_precision_recall(df, ticker):
-    y_true = df["target"]
-    y_probs = df["pred_prob"]
+    # y_true = df["target"]
+    # y_probs = df["pred_prob"]
+    # precision, recall, _ = precision_recall_curve(y_true, y_probs)
+    
+    # multi-class Convert target to binary: 1 if class 3 or 4, else 0
+    y_true = (df["target"] >= 3).astype(int)
+    y_probs = df["pred_prob"]  # confidence = prob(class 4)
     precision, recall, _ = precision_recall_curve(y_true, y_probs)
+
+    
     pr_auc = auc(recall, precision)
     plt.figure()
     plt.plot(recall, precision, marker='.')
@@ -143,7 +150,9 @@ if __name__ == "__main__":
 
             # val_probs = model.predict_proba(val_subset[model.feature_name_])[:, 1]
 
-            best_row, _ = tune_threshold(val_subset["target"], val_subset["pred_prob"])
+            # best_row, _ = tune_threshold(val_subset["target"], val_subset["pred_prob"])
+            best_row, _ = tune_threshold_multiclass(val_subset["target"], val_subset["pred_prob"])
+
             if USE_FIXED_THRESHOLD:
                 per_ticker_thresholds[ticker] = THRESHOLD
                 print(f"⚙️ Using fixed threshold = {THRESHOLD}")
@@ -208,14 +217,24 @@ if __name__ == "__main__":
         # y_true_test = df_eval["target"]
         # y_pred_test = df_eval["signal"]
 
-        y_true_test = df_ticker_test["target"]
+        # y_true_test = df_ticker_test["target"]
+        # y_pred_test = df_ticker_test["signal"]
+
+        # multi-class Convert to binary: class 3 or 4 = signal (positive)
+        y_true_test = (df_ticker_test["target"] >= 3).astype(int)
         y_pred_test = df_ticker_test["signal"]
+
+
         accuracy = accuracy_score(y_true_test, y_pred_test)
         precision = precision_score(y_true_test, y_pred_test, zero_division=0)
         recall = recall_score(y_true_test, y_pred_test, zero_division=0)
         f1 = f1_score(y_true_test, y_pred_test, zero_division=0)
         trades_df["Cumulative Equity"] = (1 + trades_df["P&L %"] / 100).cumprod()
         final_return = trades_df["Cumulative Equity"].iloc[-1]
+
+        print("\n📊 Classification Report:")
+        print(classification_report(df_ticker_test["target"], df_ticker_test["pred_class"]))
+
 
         metrics_to_print = {
             "Ticker": test_ticker,

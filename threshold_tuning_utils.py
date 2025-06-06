@@ -23,6 +23,35 @@ def tune_threshold(y_true, y_probs, thresholds=np.arange(0.3, 0.91, 0.05)):
     return best_row.to_dict(), results_df
 
 
+# ✅ Step 4: Tune threshold with binary conversion of multiclass targets
+
+def tune_threshold_multiclass(y_true, y_prob, thresholds=None):
+    """
+    Tune threshold for multiclass model (binary signal from class 3 or 4).
+    Converts y_true to binary: 1 if class >= 3 else 0.
+    """
+    from sklearn.metrics import precision_score, recall_score, f1_score
+    import numpy as np
+
+    y_true_binary = (y_true >= 3).astype(int)
+    if thresholds is None:
+        thresholds = np.arange(0.3, 0.9, 0.05)
+
+    best_f1 = -1
+    best_row = None
+    for t in thresholds:
+        y_pred = (y_prob >= t).astype(int)
+        precision = precision_score(y_true_binary, y_pred, zero_division=0)
+        recall = recall_score(y_true_binary, y_pred, zero_division=0)
+        f1 = f1_score(y_true_binary, y_pred, zero_division=0)
+        if f1 > best_f1:
+            best_f1 = f1
+            best_row = {"threshold": t, "precision": precision, "recall": recall, "f1": f1}
+
+    return best_row, thresholds
+
+
+
 
 # def tune_threshold(y_true, y_probs, df=None, return_series=None):
 #     best_result = None

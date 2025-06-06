@@ -77,14 +77,27 @@ MAX_HOLD_DAYS = 30        # Optional limit
 
 # }
 
+# LIGHTGBM_PARAMS = {
+#     "num_leaves": 64,
+#     "max_depth": 7,
+#     "learning_rate": 0.03,
+#     "n_estimators": 500,
+#     "subsample": 0.9,
+#     "colsample_bytree": 0.9,
+#     "min_child_samples": 30,
+#     "random_state": 42
+# }
+
+#multi-class target
 LIGHTGBM_PARAMS = {
-    "num_leaves": 64,
-    "max_depth": 7,
+    "objective": "multiclass",
+    "num_class": 5,
+    "metric": "multi_logloss",
     "learning_rate": 0.03,
-    "n_estimators": 500,
+    "num_leaves": 64,
+    "max_depth": 6,
     "subsample": 0.9,
     "colsample_bytree": 0.9,
-    "min_child_samples": 30,
     "random_state": 42
 }
 
