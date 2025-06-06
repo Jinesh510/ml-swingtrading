@@ -65,10 +65,10 @@ def load_processed_data(ticker):
     # df = label_multiclass_excess_return(df)
 
     #regression model
-    # df = label_excess_return_regression(df)
+    df = label_excess_return_regression(df)
 
     # binary classifier model
-    df = label_prob_3pct_gain(df)
+    # df = label_prob_3pct_gain(df)
 
     df = df.dropna().reset_index(drop=True)
     return df
@@ -159,6 +159,16 @@ def get_feature_columns(target_type=TARGET_TYPE, cap_type=CAP_TYPE, peer_name=No
 
 
     ]
+
+    interaction_features = [
+        "rsi_14_x_return_1d",
+        "volume_ratio_5d_x_volatility_5d",
+        "macd_hist_x_zscore_5d",
+        "price_range_ratio",
+        "body_size_ratio"
+    ]
+    
+    base_features += interaction_features
 
     advanced_technical_features = [
                     "price_to_vwap",
@@ -302,10 +312,10 @@ def train_lightgbm(df, ticker):
     # sample_weights = df.get("sample_weight", pd.Series([1.0] * len(df)))
 
     print(f"📊 Features being used for {ticker}: {feature_cols}")
-    model = lgb.LGBMClassifier(**LIGHTGBM_PARAMS)
+    # model = lgb.LGBMClassifier(**LIGHTGBM_PARAMS)
 
     # regression model
-    # model = lgb.LGBMRegressor(**LIGHTGBM_PARAMS)
+    model = lgb.LGBMRegressor(**LIGHTGBM_PARAMS)
 
 
     if "ticker" in feature_cols:
@@ -313,7 +323,10 @@ def train_lightgbm(df, ticker):
     else:
         model.fit(X_train, y_train)
     # model.fit(X_train, y_train)
-    joblib.dump(model, os.path.join(MODEL_DIR, f"{ticker}.pkl"))
+    # joblib.dump(model, os.path.join(MODEL_DIR, f"{ticker}.pkl"))
+    # joblib.dump(model, os.path.join(MODEL_DIR, f"model_classifier.pkl"))
+    joblib.dump(model, os.path.join(MODEL_DIR, f"model_regression.pkl"))
+
     print(f"✅ Trained with features: {X_train.columns.tolist()}")
     return model
 
@@ -347,19 +360,19 @@ def load_model(ticker):
 
 
 # regression model
-# def predict_signal(df, model):
-#     X = df[model.feature_name_]
-#     df["pred_value"] = model.predict(X)
-#     # df["signal"] = (df["pred_value"] > 0.02).astype(int)  # Predicting excess return > 2%
+def predict_signal(df, model):
+    X = df[model.feature_name_]
+    df["pred_value"] = model.predict(X)
+    # df["signal"] = (df["pred_value"] > 0.02).astype(int)  # Predicting excess return > 2%
 
-#     return df
+    return df
 
 # binary classifier model
 
-def predict_signal(df, model):
-    X = df[model.feature_name_]
-    df["pred_prob"] = model.predict_proba(X)[:, 1]  # For binary classification
-    return df
+# def predict_signal(df, model):
+#     X = df[model.feature_name_]
+#     df["pred_prob"] = model.predict_proba(X)[:, 1]  # For binary classification
+#     return df
 
 
 
@@ -633,7 +646,7 @@ def generate_signals(df, model, threshold=THRESHOLD, topk=TOP_K, signal_mode=SIG
             df["threshold"] = threshold
         
         #binary classifier
-        df["signal"] = (df["pred_prob"] >= df["threshold"]).astype(int)
+        # df["signal"] = (df["pred_prob"] >= df["threshold"]).astype(int)
 
         #multi-class target variable changes
         # Generate signal if predicted class is Buy (3) or Strong Buy (4) AND confidence > threshold
@@ -641,7 +654,7 @@ def generate_signals(df, model, threshold=THRESHOLD, topk=TOP_K, signal_mode=SIG
 
 
         # Regression model logic
-        # df["signal"] = (df["pred_value"] >= threshold).astype(int)
+        df["signal"] = (df["pred_value"] >= threshold).astype(int)
 
 
         # df = apply_post_prediction_filters(df)
@@ -1015,6 +1028,18 @@ def generate_clean_features(df):
     df["macd_hist"] = macd["MACDh_12_26_9"]  # MACD histogram (diff between macd and signal)
 
 
+    # 🧠 Feature Interactions
+    df["rsi_14_x_return_1d"] = df["rsi_14"] * df["return_1d"]
+    
+    df["volume_ratio_5d"] = df["Volume"] / df["Volume"].rolling(5).mean()
+
+    df["volume_ratio_5d_x_volatility_5d"] = df["volume_ratio_5d"] * df["volatility_5d"]
+    df["macd_hist_x_zscore_5d"] = df["macd_hist"] * df["zscore_return_5d"]
+    df["price_range_ratio"] = (df["High"] - df["Low"]) / df["Open"]
+    df["body_size_ratio"] = abs(df["Close"] - df["Open"]) / (df["High"] - df["Low"] + 1e-6)
+
+
+
 
 
 
@@ -1098,3 +1123,55 @@ def label_prob_3pct_gain(df):
             df.at[i, "target"] = 1
     return df
 
+# ✅ Add rule-based momentum score for ensemble ranker
+
+def compute_momentum_score(df):
+    """
+    Rule-based momentum score combining RSI, EMA crossover, and MACD histogram.
+    The higher the score, the stronger the bullish momentum.
+    """
+    df = df.copy()
+    score = 0
+
+    # RSI > 60
+    df["rsi_flag"] = (df["rsi_14"] > 60).astype(int)
+
+    # EMA 5 > EMA 20
+    df["ema_ratio"] = df["ema_5"] / df["ema_20"]
+    df["ema_flag"] = (df["ema_ratio"] > 1.01).astype(int)
+
+    # MACD histogram > 0
+    df["macd_flag"] = (df["macd_hist"] > 0).astype(int)
+
+    # Total momentum score = sum of the above
+    df["momentum_score"] = df["rsi_flag"] + df["ema_flag"] + df["macd_flag"]
+
+    return df
+
+# ✅ Generate ensemble rank and signal
+
+def generate_ensemble_signals(df, regression_model, classification_model, topk=30):
+    df = df.copy()
+
+    # Predict regression model
+    X_reg = df[regression_model.feature_name_]
+    df["pred_value"] = regression_model.predict(X_reg)
+    df["rank_regression"] = df["pred_value"].rank(pct=True)
+
+    # Predict classification model
+    X_clf = df[classification_model.feature_name_]
+    df["pred_prob"] = classification_model.predict_proba(X_clf)[:, 1]
+    df["rank_classifier"] = df["pred_prob"].rank(pct=True)
+
+    # Compute momentum score and rank
+    df = compute_momentum_score(df)
+    df["rank_momentum"] = df["momentum_score"].rank(pct=True)
+
+    # Final rank: average of all ranks
+    df["final_rank"] = (df["rank_regression"] + df["rank_classifier"] + df["rank_momentum"]) / 3
+
+    # Generate signal based on top-k
+    df["rank"] = df["final_rank"].rank(method="first", ascending=False)
+    df["signal"] = (df["rank"] <= topk).astype(int)
+
+    return df

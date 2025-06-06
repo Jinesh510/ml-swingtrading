@@ -26,7 +26,7 @@ PROMOTION_CRITERIA = {"f1_score_min": 0.6, "final_return_min": 1.2}
 
 USE_FIXED_THRESHOLD = False
 SIGNAL_MODE = "threshold"       # "topk" or "threshold"
-TOP_K = 50                 # used only if mode is topk
+TOP_K = 30                 # used only if mode is topk
 THRESHOLD = 0.4            # used only if mode is threshold
 
 TARGET_TYPE = "10d_vs_sector"  # Options: "3d_1pct","5d_vs_sector", "10d_vs_sector", "quantile_top25"
@@ -103,25 +103,9 @@ MAX_HOLD_DAYS = 30        # Optional limit
 
 #regression model
 
-# LIGHTGBM_PARAMS = {
-#     "objective": "regression",
-#     "metric": "rmse",
-#     "learning_rate": 0.03,
-#     "num_leaves": 64,
-#     "max_depth": 6,
-#     "subsample": 0.9,
-#     "colsample_bytree": 0.9,
-#     "random_state": 42
-# }
-
-
-SIGNAL_THRESHOLD = 0.02
-
-#binary classifier
-
 LIGHTGBM_PARAMS = {
-    "objective": "binary",
-    "metric": "binary_logloss",
+    "objective": "regression",
+    "metric": "rmse",
     "learning_rate": 0.03,
     "num_leaves": 64,
     "max_depth": 6,
@@ -129,4 +113,20 @@ LIGHTGBM_PARAMS = {
     "colsample_bytree": 0.9,
     "random_state": 42
 }
+
+
+SIGNAL_THRESHOLD = 0.02
+
+#binary classifier
+
+# LIGHTGBM_PARAMS = {
+#     "objective": "binary",
+#     "metric": "binary_logloss",
+#     "learning_rate": 0.03,
+#     "num_leaves": 64,
+#     "max_depth": 6,
+#     "subsample": 0.9,
+#     "colsample_bytree": 0.9,
+#     "random_state": 42
+# }
 
