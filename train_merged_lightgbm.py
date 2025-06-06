@@ -1,9 +1,9 @@
-
+import os
 from matplotlib import pyplot as plt
 import pandas as pd
 from sklearn.metrics import accuracy_score, auc, f1_score, precision_recall_curve, precision_score, recall_score
 from sklearn.model_selection import train_test_split
-from config import SIGNAL_MODE, THRESHOLD, TOP_K, USE_FIXED_THRESHOLD
+from config import PLOTS_DIR, PROB_DIST_DIR, RESULTS_DIR, SIGNAL_MODE, THRESHOLD, TOP_K, TRADES_DIR, USE_FIXED_THRESHOLD
 from threshold_tuning_utils import tune_threshold
 # from threshold_tuning_utils import walk_forward_threshold_tuning
 from utils import apply_training_filters, generate_signals, label_profitable_trades, load_processed_data, simulate_trades
@@ -30,7 +30,7 @@ def plot_precision_recall(df, ticker):
     plt.xlabel("Recall")
     plt.ylabel("Precision")
     plt.grid(True)
-    plt.savefig(f"pr_curve_{ticker}.png")
+    plt.savefig(os.path.join(PLOTS_DIR,f"pr_curve_{ticker}.png"))
     plt.close()
     return pr_auc
 
@@ -44,7 +44,7 @@ def plot_probability_histogram(df, ticker, set_name="test"):
     plt.ylabel("Frequency")
     plt.legend()
     plt.grid(True)
-    plt.savefig(f"prob_dist_{ticker}_{set_name}.png")
+    plt.savefig(os.path.join(PROB_DIST_DIR,f"prob_dist_{ticker}_{set_name}.png"))
     plt.close()
 
 
@@ -96,7 +96,9 @@ if __name__ == "__main__":
     # df_test_labeled = label_profitable_trades(df_test_signals, test_trades)
 
     optimal_threshold = THRESHOLD
-    df_val_pred = generate_signals(df_val.copy(), model, threshold=optimal_threshold, topk=TOP_K, signal_mode=SIGNAL_MODE)
+    # df_val_pred = generate_signals(df_val.copy(), model, threshold=optimal_threshold, topk=TOP_K, signal_mode=SIGNAL_MODE)
+    df_val_pred = predict_signal(df_val.copy(), model)
+
     # Compute predicted probabilities
     # df_val_pred["pred_prob"] = model.predict_proba(df_val_pred[model.feature_name_])[:, 1]
 
@@ -139,7 +141,7 @@ if __name__ == "__main__":
             #     return_series=pnl_series
             # )
 
-            # val_probs = model_temp.predict_proba(val_subset[model_temp.feature_name_])[:, 1]
+            # val_probs = model.predict_proba(val_subset[model.feature_name_])[:, 1]
 
             best_row, _ = tune_threshold(val_subset["target"], val_subset["pred_prob"])
             if USE_FIXED_THRESHOLD:
@@ -194,7 +196,8 @@ if __name__ == "__main__":
         # plt.ylabel("Trade Count")
         # plt.grid(True)
         # plt.show()
-        trades_df.to_csv(f"trades_{test_ticker}.csv", index=False)
+
+        trades_df.to_csv(os.path.join(TRADES_DIR, f"trades_{test_ticker}.csv"), index=False)
         print(f"📝 Saved trades_{test_ticker}.csv and PR curve image.")
 
         _, metrics = analyze_trades(trades_df, test_ticker)
@@ -240,6 +243,6 @@ if __name__ == "__main__":
 
 
     summary_df = pd.DataFrame(results)
-    summary_df.to_csv("merged_model_test_summary.csv", index=False)
+    summary_df.to_csv(os.path.join(RESULTS_DIR,"merged_model_test_summary.csv"), index=False)
     print("✅ Summary saved to merged_model_test_summary.csv")
 

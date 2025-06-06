@@ -17,6 +17,9 @@ DATA_DIR = "data/nse_eod"
 MODEL_DIR = "models"
 PLOTS_DIR = os.path.join(MODEL_DIR, "plots")
 TRADES_DIR = os.path.join(MODEL_DIR, "trades")
+PROB_DIST_DIR = os.path.join(MODEL_DIR, "prob_dist")
+RESULTS_DIR = os.path.join(MODEL_DIR, "results")
+
 
 
 PROMOTION_CRITERIA = {"f1_score_min": 0.6, "final_return_min": 1.2}
@@ -24,16 +27,16 @@ PROMOTION_CRITERIA = {"f1_score_min": 0.6, "final_return_min": 1.2}
 USE_FIXED_THRESHOLD = False
 SIGNAL_MODE = "threshold"       # "topk" or "threshold"
 TOP_K = 50                 # used only if mode is topk
-THRESHOLD = 0.5            # used only if mode is threshold
+THRESHOLD = 0.4            # used only if mode is threshold
 
-TARGET_TYPE = "3d_1pct"  # Options: "3d_1pct","5d_vs_sector", "10d_vs_sector", "quantile_top25"
+TARGET_TYPE = "10d_vs_sector"  # Options: "3d_1pct","5d_vs_sector", "10d_vs_sector", "quantile_top25"
 CAP_TYPE = "midcap"      # Options: "largecap", "midcap", "smallcap"
 PEER_NAME = None
 
 # original exit conditions aligned with target
-TRAILING_STOPLOSS = 0.04   # 4%
-PROFIT_TARGET = 0.03       # 3%
-MAX_HOLD_DAYS = 6        # Optional limit
+TRAILING_STOPLOSS = 0.1   # 4%
+PROFIT_TARGET = 0.08       # 3%
+MAX_HOLD_DAYS = 30        # Optional limit
 
 # Exit Logic Configuration (for simulate_trades)
 # EXIT_SMA_PERIOD = 5             # for SMA_X breach
@@ -56,11 +59,11 @@ MAX_HOLD_DAYS = 6        # Optional limit
 #     "class_weight": "balanced"
 # }
 
-LIGHTGBM_PARAMS = {
-    "objective": "binary",
-    "metric": "binary_logloss",
-    "verbosity": -1
-}
+# LIGHTGBM_PARAMS = {
+#     "objective": "binary",
+#     "metric": "binary_logloss",
+#     "verbosity": -1
+# }
 
 # LIGHTGBM_PARAMS={
 #     'num_leaves': 64,
@@ -73,3 +76,15 @@ LIGHTGBM_PARAMS = {
 # 'class_weight': 'balanced'
 
 # }
+
+LIGHTGBM_PARAMS = {
+    "num_leaves": 64,
+    "max_depth": 7,
+    "learning_rate": 0.03,
+    "n_estimators": 500,
+    "subsample": 0.9,
+    "colsample_bytree": 0.9,
+    "min_child_samples": 30,
+    "random_state": 42
+}
+

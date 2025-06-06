@@ -1,4 +1,4 @@
-from index_utils import compute_index_features, load_vix_index
+from index_utils import compute_index_features, compute_sector_features, load_vix_index
 import pandas as pd
 import numpy as np
 import lightgbm as lgb
@@ -31,16 +31,16 @@ def load_processed_data(ticker):
     # Add advanced features
     df["ticker"] = ticker
 
-    df = add_advanced_features(df, ticker=ticker)
-    df = add_peer_relative_features(df)
-    df = tag_market_regime(df)
+    # df = add_advanced_features(df, ticker=ticker)
+    # df = add_peer_relative_features(df)
+    # df = tag_market_regime(df)
 
     
-    lagged = generate_lagged_features(df)
-    df = pd.concat([df, lagged], axis=1)
+    # lagged = generate_lagged_features(df)
+    # df = pd.concat([df, lagged], axis=1)
 
-    df = add_enriched_features(df,ticker=ticker)
-    print(df.head())
+    # df = add_enriched_features(df,ticker=ticker)
+    # print(df.head())
     # # Merge NIFTY index features
     # nifty = load_index_features("NIFTY")
     # df = df.merge(nifty.add_prefix("nifty_"), left_on="Date", right_on="nifty_Date", how="left").drop(columns=["nifty_Date"])
@@ -52,6 +52,12 @@ def load_processed_data(ticker):
     # df = df.merge(sector_df.add_prefix("sector_"), left_on="Date", right_on="sector_Date", how="left").drop(columns=["sector_Date"])
     # df = df.drop(columns=["sector_Open","sector_High","sector_Low","sector_Close"])
 
+    #new code for 10d target
+    df = generate_clean_features(df)
+    df = merge_index_features("NIFTY",df)
+    df = merge_sector_features(ticker,df)
+
+    
     # Add target column based on current TARGET_TYPE
     df = get_target_definition(df, target_type=TARGET_TYPE)
 
@@ -77,7 +83,7 @@ def get_target_definition(df, target_type="3d_1pct"):
     elif target_type == "5d_vs_sector":
         df["target"] = (df["return_5d"] > df["sector_ret_5d"] + 0.02).astype(int)    
     elif target_type == "10d_vs_sector":
-        df["target"] = (df["return_10d"] > df["sector_ret_10d"] + 0.02).astype(int)
+        df["target"] = (df["return_10d"] > df["sector_ret_10d"] + 0.01).astype(int)
     elif target_type == "quantile_top25":
         q75 = df["return_10d"].quantile(0.75)
         df["target"] = (df["return_10d"] > q75).astype(int)
@@ -98,6 +104,44 @@ def get_feature_columns(target_type=TARGET_TYPE, cap_type=CAP_TYPE, peer_name=No
         # "macd_hist",
         "price_vs_sma_10",
         "breakout_flag_5d"
+    ]
+
+    base_features = [
+        
+        "return_1d", "return_3d", "return_5d",
+        "sma_ratio", "ema_ratio", "price_trend",
+        "volatility_5d", "volatility_rank_5d",
+        "vix_lag1",
+        # New breakout/momentum features
+        "breakout_5d",         # Close relative to recent high
+        "open_close_ratio",    # Intra-day strength
+        "gap_up_1pct",         # Gap-up flag
+        "bullish_bar",          # Bullish candle
+
+         # 🟩 New pattern signals
+        "3d_consistent_up",
+        "new_high_5d",
+
+        # 🟪 Interaction features
+        "momentum_score",           # return_5d * ema_ratio
+        "vol_adjusted_return",      # return_5d / volatility_5d
+        
+        #newer
+        "breakout_10d",
+        "rel_5d_strength",        
+        "vol_adj_bar",
+        "ema_diff_lag1",
+
+        #index features
+        "nifty_ret_10d",
+
+        # Reversal signals (optional)
+        "prev_day_reversal", 
+        "strong_reversal_candle"
+
+
+
+
     ]
 
     advanced_technical_features = [
@@ -144,25 +188,26 @@ def get_feature_columns(target_type=TARGET_TYPE, cap_type=CAP_TYPE, peer_name=No
         "macd_hist_lag1", "macd_hist_lag2", "macd_hist_lag3"
     ]
     
-    base_features = base_features + advanced_technical_features + enriched_features
-    base_features += lagged_features 
+    # base_features = base_features + advanced_technical_features + enriched_features
+    # base_features += lagged_features 
 
-    if include_index_and_sector and cap_type in ["midcap", "largecap"]:
-        base_features += [
-            # "nifty_ret_3d", 
-            "nifty_volatility_10d", 
-            "nifty_rsi_14",
-            # "sector_ret_3d", 
-            "sector_volatility_10d", 
-            "sector_rsi_14"
-        ]
+    # if include_index_and_sector and cap_type in ["midcap", "largecap"]:
+    #     base_features += [
+    #         # "nifty_ret_3d", 
+    #         "nifty_volatility_10d", 
+    #         "nifty_rsi_14",
+    #         # "sector_ret_3d", 
+    #         "sector_volatility_10d", 
+    #         "sector_rsi_14"
+    #     ]
 
-        if "5d" in TARGET_TYPE:
-            base_features += ["nifty_ret_5d","sector_ret_5d"]
-        elif "3d" in TARGET_TYPE:
-            base_features += ["nifty_ret_3d","sector_ret_3d"]
-        elif "10d" in TARGET_TYPE:
-            base_features += ["nifty_ret_10d","sector_ret_10d"]
+    #     if "5d" in TARGET_TYPE:
+    #         base_features += ["nifty_ret_5d","sector_ret_5d"]
+    #     elif "3d" in TARGET_TYPE:
+    #         base_features += ["nifty_ret_3d","sector_ret_3d"]
+    #     elif "10d" in TARGET_TYPE:
+    #         base_features += ["nifty_ret_10d","sector_ret_10d"]
+
 
     
 
@@ -178,25 +223,25 @@ def get_feature_columns(target_type=TARGET_TYPE, cap_type=CAP_TYPE, peer_name=No
         ]
 
     ## experiment overriding everything 
-    base_features =[
-                    'market_volatility',
-                    'nifty_volatility_10d',
-                    'market_momentum_20d',
-                    'sector_rsi_14',
-                    'sector_ret_3d',
-                    'sector_volatility_10d',
-                    'market_rsi',
-                    'nifty_ret_3d',
-                    'nifty_rsi_14',
-                    'atr_pct',
-                    'volume_zscore',
-                    'bb_position',
-                    'price_vs_sma_10',
-                    'rel_ret_3d',
-                    'rsi_14_rank_within_peers',
-                    'vix'
+    # base_features =[
+    #                 'market_volatility',
+    #                 'nifty_volatility_10d',
+    #                 'market_momentum_20d',
+    #                 'sector_rsi_14',
+    #                 'sector_ret_3d',
+    #                 'sector_volatility_10d',
+    #                 'market_rsi',
+    #                 'nifty_ret_3d',
+    #                 'nifty_rsi_14',
+    #                 'atr_pct',
+    #                 'volume_zscore',
+    #                 'bb_position',
+    #                 'price_vs_sma_10',
+    #                 'rel_ret_3d',
+    #                 'rsi_14_rank_within_peers',
+    #                 'vix'
 
-    ]
+    # ]
 
     return base_features
 def drop_target_related_columns(target_type):
@@ -224,7 +269,11 @@ def train_lightgbm(df, ticker):
     # extra_leakage_cols = ["target", "sample_weight"]
 
     extra_ignore = ["Date", "pred_prob", "signal", "rank"]
+    some_more_to_ignore = ["vix_lag1"]
+    addl_cols_to_ignore = ["bullish_bar", "gap_up_1pct", "price_trend", "new_high_5d","3d_consistent_up", "rel_5d_strength"]
     cols_to_ignore = leakage_cols + extra_ignore 
+    # cols_to_ignore += some_more_to_ignore
+    cols_to_ignore += addl_cols_to_ignore
     # Categorical ticker (applies to both single and merged case)
     if "ticker" in df.columns:
         df["ticker"] = df["ticker"].astype("category")
@@ -336,7 +385,7 @@ def add_advanced_features(df,ticker):
 
     #adding vix
     vix_df = load_vix_index()
-    print("Vix head:",vix_df.head())
+    # print("Vix head:",vix_df.head())
     df = df.merge(vix_df, on="Date", how="left")
     df["vix"] = df["vix"].fillna(method="ffill")
 
@@ -485,8 +534,9 @@ def load_sector_features(sector_name):
     filepath = os.path.join("data", "sector_eod", f"{sector_name}.csv")
     if os.path.exists(filepath):
         df = pd.read_csv(filepath, parse_dates=["Date"])
-        return compute_index_features(df)
+        return compute_sector_features(df)
     return pd.DataFrame()
+
 def apply_post_prediction_filters(df, prob_col="pred_prob", threshold=THRESHOLD):
     df = df.copy()
     # print(f"df len before post pred filter:{len(df)}")
@@ -508,7 +558,7 @@ def generate_signals(df, model, threshold=THRESHOLD, topk=TOP_K, signal_mode=SIG
     if signal_mode == "topk":
         df["rank"] = df["pred_prob"].rank(method="first", ascending=False)
         df["signal"] = (df["rank"] <= topk).astype(int)
-        df["confidence_weight"] = 1.0  # uniform weight
+        # df["confidence_weight"] = 1.0  # uniform weight
 
     else:  # threshold mode
         # df["signal"] = (df["pred_prob"] >= threshold).astype(int)
@@ -533,10 +583,10 @@ def generate_signals(df, model, threshold=THRESHOLD, topk=TOP_K, signal_mode=SIG
         # df = apply_post_prediction_filters(df)
 
         # Confidence weight for signal days only
-        df["confidence_weight"] = 0.0
-        df.loc[df["signal"] == 1, "confidence_weight"] = (
-            df["pred_prob"] - df["threshold"]
-        ) / df["atr_pct"]
+        # df["confidence_weight"] = 0.0
+        # df.loc[df["signal"] == 1, "confidence_weight"] = (
+        #     df["pred_prob"] - df["threshold"]
+        # ) / df["atr_pct"]
 
     return df
 
@@ -602,8 +652,8 @@ def simulate_trades(df, ticker, trailing_stop=TRAILING_STOPLOSS, profit_target=P
             pnl_pct = ((exit_price - entry_price) / entry_price) * 100
             
             #confidence based allocation
-            weight = df.iloc[i].get("confidence_weight", 1.0)  # fallback = 1.0
-            weighted_pnl = pnl_pct * weight
+            # weight = df.iloc[i].get("confidence_weight", 1.0)  # fallback = 1.0
+            # weighted_pnl = pnl_pct * weight
 
             holding_days = (pd.to_datetime(exit_date) - pd.to_datetime(entry_date)).days
             trades.append({
@@ -613,9 +663,9 @@ def simulate_trades(df, ticker, trailing_stop=TRAILING_STOPLOSS, profit_target=P
                 "Sell Price": round(exit_price, 2),
                 "P&L %": round(pnl_pct, 2),
                 "holding_days": holding_days,
-                "exit_reason": exit_reason,
-                "confidence_weight": round(weight, 3),
-                "weighted_pnl": round(weighted_pnl, 3)
+                "exit_reason": exit_reason
+                # "confidence_weight": round(weight, 3),
+                # "weighted_pnl": round(weighted_pnl, 3)
             })
             last_exit_index = j
 
@@ -803,5 +853,128 @@ def tag_market_regime(df):
 
     return df
 
+#### New code for 10d sector outperformance exp
+
+def label_sector_outperformers_10d(df, threshold=0.03):
+    """
+    Labels target = 1 for stocks that outperform their sector by a margin in 10 days.
+    Assumes 'return_10d' and 'sector_ret_10d' columns already exist.
+    """
+    df["target"] = (df["return_10d"] > df["sector_ret_10d"] + threshold).astype(int)
+    return df
+
+def generate_clean_features(df):
+    """
+    Clean, minimal feature set for merged stock training.
+    Assumes 'close', 'sector', and 'return_1d' columns are available.
+    """
+    # Momentum features
+    df["return_1d"] = df["Close"].pct_change(1)
+    df["return_3d"] = df["Close"].pct_change(3)
+    df["return_5d"] = df["Close"].pct_change(5)
+    if "10d" in TARGET_TYPE:
+        df["return_10d"] = df["Close"].pct_change(10).shift(-10)
+
+    # Moving average ratios
+    df["sma_5"] = df["Close"].rolling(5).mean()
+    df["sma_20"] = df["Close"].rolling(20).mean()
+    df["sma_ratio"] = df["sma_5"] / df["sma_20"]
+
+    df["ema_5"] = df["Close"].ewm(span=5, adjust=False).mean()
+    df["ema_20"] = df["Close"].ewm(span=20, adjust=False).mean()
+    df["ema_ratio"] = df["ema_5"] / df["ema_20"]
+
+    df["price_trend"] = (df["ema_5"] > df["ema_20"]).astype(int)
+
+    # Volatility features
+    df["volatility_5d"] = df["Close"].rolling(5).std()
+    df["volatility_rank_5d"] = df["volatility_5d"].rank(pct=True)
+
+    #adding vix
+    vix_df = load_vix_index()
+    # print("Vix head:",vix_df.head())
+    vix_df["vix_lag1"] = vix_df["vix"].shift(1)
+    df = df.merge(vix_df[["Date", "vix_lag1"]], on="Date", how="left")
+    df["vix_lag1"] = df["vix_lag1"].fillna(method="ffill")
+
+    # Relative to recent high — breakout strength
+    df["breakout_5d"] = df["Close"] / df["Close"].rolling(5).max()
+
+    # Intra-day price strength
+    df["open_close_ratio"] = df["Close"] / df["Open"]
+
+    # Gap-up signal (1%+ gap up from previous close)
+    df["gap_up_1pct"] = (df["Open"] > df["Close"].shift(1) * 1.01).astype(int)
+
+    # Bullish bar: close > open and body > 1% of close
+    df["bullish_bar"] = ((df["Close"] > df["Open"]) & 
+                        ((df["Close"] - df["Open"]) > df["Close"] * 0.01)).astype(int)
 
 
+    # Has the stock been closing higher for 3 days?
+    df["3d_consistent_up"] = (
+        (df["Close"] > df["Close"].shift(1)) &
+        (df["Close"].shift(1) > df["Close"].shift(2)) &
+        (df["Close"].shift(2) > df["Close"].shift(3))
+    ).astype(int)
+
+    # Is today's close highest of past 5 days?
+    df["new_high_5d"] = (df["Close"] == df["Close"].rolling(5).max()).astype(int)
+
+    df["momentum_score"] = df["return_5d"] * df["ema_ratio"]
+    df["vol_adjusted_return"] = df["return_5d"] / (df["volatility_5d"] + 1e-6)
+
+
+    # Price breakout strength
+    df["breakout_10d"] = df["Close"] / df["Close"].rolling(10).max()
+
+    # Relative strength compared to group
+    df["rel_5d_strength"] = df["return_5d"] - df.groupby("Date")["return_5d"].transform("median")
+
+    # Volume-adjusted signal (if available)
+    df["vol_adj_bar"] = (df["Close"] > df["Open"]) * df["Volume"].rolling(3).mean()
+
+    # Lagged signal as a proxy for trend continuation
+    df["ema_diff_lag1"] = (df["ema_5"] - df["ema_20"]).shift(1)
+
+
+    df["prev_day_reversal"] = ((df["Close"].shift(1) < df["Open"].shift(1)) &
+                           (df["Close"] > df["Open"])).astype(int)
+
+    df["strong_reversal_candle"] = ((df["Close"] > df["Open"]) & 
+                                    ((df["Close"] - df["Open"]) > 2 * (df["Open"] - df["Low"]))).astype(int)
+
+
+
+
+
+
+
+
+    # Drop rows with NaNs due to rolling calculations
+
+    df.dropna(inplace=True)
+
+    return df
+
+def merge_index_features(index_name,df):
+
+    nifty = load_index_features(index_name)
+    if not nifty.empty:
+        df = df.merge(nifty.add_prefix("nifty_"), left_on="Date", right_on="nifty_Date", how="left").drop(columns=["nifty_Date"])
+        df = df.drop(columns=["nifty_Open","nifty_High","nifty_Low","nifty_Close"])
+        return df
+    return df
+
+def merge_sector_features(ticker,df):
+    sector = get_sector_for_stock(ticker)
+    if sector:
+        sector_df = load_sector_features(sector)
+        if not sector_df.empty:
+            sector_df["Date"] = pd.to_datetime(sector_df["Date"])
+            df = df.merge(sector_df.add_prefix("sector_"), left_on="Date", right_on="sector_Date", how="left").drop(columns=["sector_Date"])
+            df = df.drop(columns=["sector_Open","sector_High","sector_Low","sector_Close"])
+            df["rel_return_10d"] = df["return_10d"] - df["sector_ret_10d"]
+            return df
+        return df
+    return df

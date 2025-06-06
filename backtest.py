@@ -18,9 +18,12 @@ from utils import (
     predict_signal,
     load_sector_features,
     load_index_features,
-    get_sector_for_stock
+    get_sector_for_stock,
+    generate_clean_features, 
+    label_sector_outperformers_10d
 )
 from trade_analyzer import analyze_trades
+
 def plot_prediction_distribution(df, ticker):
     if "pred_prob" in df.columns:
         plt.figure(figsize=(8, 4))
