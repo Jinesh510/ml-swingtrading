@@ -168,7 +168,7 @@ def get_feature_columns(target_type=TARGET_TYPE, cap_type=CAP_TYPE, peer_name=No
         "body_size_ratio"
     ]
     
-    base_features += interaction_features
+    # base_features += interaction_features
 
     advanced_technical_features = [
                     "price_to_vwap",
@@ -1034,7 +1034,7 @@ def generate_clean_features(df):
     df["volume_ratio_5d"] = df["Volume"] / df["Volume"].rolling(5).mean()
 
     df["volume_ratio_5d_x_volatility_5d"] = df["volume_ratio_5d"] * df["volatility_5d"]
-    df["macd_hist_x_zscore_5d"] = df["macd_hist"] * df["zscore_return_5d"]
+    # df["macd_hist_x_zscore_5d"] = df["macd_hist"] * df["zscore_return_5d"]
     df["price_range_ratio"] = (df["High"] - df["Low"]) / df["Open"]
     df["body_size_ratio"] = abs(df["Close"] - df["Open"]) / (df["High"] - df["Low"] + 1e-6)
 
