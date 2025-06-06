@@ -89,10 +89,23 @@ MAX_HOLD_DAYS = 30        # Optional limit
 # }
 
 #multi-class target
+# LIGHTGBM_PARAMS = {
+#     "objective": "multiclass",
+#     "num_class": 5,
+#     "metric": "multi_logloss",
+#     "learning_rate": 0.03,
+#     "num_leaves": 64,
+#     "max_depth": 6,
+#     "subsample": 0.9,
+#     "colsample_bytree": 0.9,
+#     "random_state": 42
+# }
+
+#regression model
+
 LIGHTGBM_PARAMS = {
-    "objective": "multiclass",
-    "num_class": 5,
-    "metric": "multi_logloss",
+    "objective": "regression",
+    "metric": "rmse",
     "learning_rate": 0.03,
     "num_leaves": 64,
     "max_depth": 6,
@@ -100,4 +113,7 @@ LIGHTGBM_PARAMS = {
     "colsample_bytree": 0.9,
     "random_state": 42
 }
+
+
+SIGNAL_THRESHOLD = 0.02
 

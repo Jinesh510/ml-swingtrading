@@ -62,7 +62,11 @@ def load_processed_data(ticker):
     # df = get_target_definition(df, target_type=TARGET_TYPE)
 
     #multi-class target variable changes
-    df = label_multiclass_excess_return(df)
+    # df = label_multiclass_excess_return(df)
+
+    #regression model
+    df = label_excess_return_regression(df)
+
 
     df = df.dropna().reset_index(drop=True)
     return df
@@ -296,7 +300,12 @@ def train_lightgbm(df, ticker):
     # sample_weights = df.get("sample_weight", pd.Series([1.0] * len(df)))
 
     print(f"📊 Features being used for {ticker}: {feature_cols}")
-    model = lgb.LGBMClassifier(**LIGHTGBM_PARAMS)
+    # model = lgb.LGBMClassifier(**LIGHTGBM_PARAMS)
+
+    # regression model
+    model = lgb.LGBMRegressor(**LIGHTGBM_PARAMS)
+
+
     if "ticker" in feature_cols:
         model.fit(X_train, y_train ,categorical_feature=["ticker"])
     else:
@@ -323,15 +332,24 @@ def load_model(ticker):
 #     return df
 
 ## multi-class target variable changes
+# def predict_signal(df, model):
+#     """
+#     Predicts class probabilities using a multiclass model.
+#     Uses probability of class 4 (Strong Buy) as pred_prob.
+#     """
+#     X = df[model.feature_name_]
+#     pred_probs = model.predict_proba(X)  # shape (n_samples, 5)
+#     df["pred_class"] = np.argmax(pred_probs, axis=1)
+#     df["pred_prob"] = pred_probs[:, 4]  # Use Strong Buy prob for ranking/confidence
+#     return df
+
+
+# regression model
 def predict_signal(df, model):
-    """
-    Predicts class probabilities using a multiclass model.
-    Uses probability of class 4 (Strong Buy) as pred_prob.
-    """
     X = df[model.feature_name_]
-    pred_probs = model.predict_proba(X)  # shape (n_samples, 5)
-    df["pred_class"] = np.argmax(pred_probs, axis=1)
-    df["pred_prob"] = pred_probs[:, 4]  # Use Strong Buy prob for ranking/confidence
+    df["pred_value"] = model.predict(X)
+    # df["signal"] = (df["pred_value"] > 0.02).astype(int)  # Predicting excess return > 2%
+
     return df
 
 
@@ -608,7 +626,11 @@ def generate_signals(df, model, threshold=THRESHOLD, topk=TOP_K, signal_mode=SIG
 
         #multi-class target variable changes
         # Generate signal if predicted class is Buy (3) or Strong Buy (4) AND confidence > threshold
-        df["signal"] = ((df["pred_class"] >= 3) & (df["pred_prob"] >= df["threshold"])).astype(int)
+        # df["signal"] = ((df["pred_class"] >= 3) & (df["pred_prob"] >= df["threshold"])).astype(int)
+
+
+        # Regression model logic
+        df["signal"] = (df["pred_value"] >= threshold).astype(int)
 
 
         # df = apply_post_prediction_filters(df)
@@ -1032,6 +1054,12 @@ def label_multiclass_excess_return(df):
     df["target"] = df["target"].astype(float).fillna(-1).astype(int)
 
     return df
+
+def label_excess_return_regression(df):
+    df = df.dropna(subset=["return_10d", "sector_ret_10d"])
+    df["target"] = df["return_10d"] - df["sector_ret_10d"]
+    return df
+
 
 def extract_signals_from_multiclass_preds(pred_probs):
     """
