@@ -140,8 +140,15 @@ def get_feature_columns(target_type=TARGET_TYPE, cap_type=CAP_TYPE, peer_name=No
 
         # Reversal signals (optional)
         "prev_day_reversal", 
-        "strong_reversal_candle"
+        "strong_reversal_candle",
 
+        #cross-sectional features
+        "rank_return_5d", 
+        "zscore_return_5d",
+
+        #basic technical indicators
+        "rsi_14",
+        "macd_hist"
 
 
 
@@ -969,6 +976,10 @@ def generate_clean_features(df):
                                     ((df["Close"] - df["Open"]) > 2 * (df["Open"] - df["Low"]))).astype(int)
 
 
+    # Technical indicators
+    df["rsi_14"] = ta.rsi(df["Close"], length=14)
+    macd = ta.macd(df["Close"])
+    df["macd_hist"] = macd["MACDh_12_26_9"]  # MACD histogram (diff between macd and signal)
 
 
 

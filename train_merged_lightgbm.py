@@ -57,7 +57,7 @@ def plot_probability_histogram(df, ticker, set_name="test"):
 
 if __name__ == "__main__":
     tickers = ["MPHASIS", "PERSISTENT", "COFORGE", "BSOFT", "ECLERX","CYIENT","SONATASOFTW","ZENSARTECH","TATAELXSI"]
-    # tickers =["COFORGE"]
+    # tickers =["CYIENT"]
     # tickers = ["MPHASIS", "COFORGE", "PERSISTENT", "BIRLASOFT", "LTI", 
     #             "LTTS", "TATAELXSI", "SONATSOFTW", "ZENSARTECH", "CYIENT", 
     #             "KPITTECH", "ECLERX", "DATAPATTNS", "LATENTVIEW", "NEWGEN"]
@@ -66,6 +66,14 @@ if __name__ == "__main__":
 
     # Sort by date just in case
     merged_df = merged_df.sort_values("Date").reset_index(drop=True)
+
+    # ✅ Compute cross-sectional ranks/zscores across tickers by date
+    merged_df["rank_return_5d"] = merged_df.groupby("Date")["return_5d"].rank(pct=True)
+
+    merged_df["zscore_return_5d"] = (
+        merged_df["return_5d"] - merged_df.groupby("Date")["return_5d"].transform("mean")
+    ) / merged_df.groupby("Date")["return_5d"].transform("std")
+
     # Train joint model
     df_train, df_temp = train_test_split(merged_df, test_size=0.4, shuffle=False)
     df_val, df_test = train_test_split(df_temp, test_size=0.5, shuffle=False)
