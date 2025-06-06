@@ -51,6 +51,17 @@ def tune_threshold_multiclass(y_true, y_prob, thresholds=None):
     return best_row, thresholds
 
 
+def tune_threshold_binary(y_true, y_probs, lower=0.3, upper=0.7, step=0.05):
+    best_f1 = 0
+    best_threshold = lower
+    for threshold in np.arange(lower, upper, step):
+        y_pred = (y_probs >= threshold).astype(int)
+        f1 = f1_score(y_true, y_pred)
+        if f1 > best_f1:
+            best_f1 = f1
+            best_threshold = threshold
+    return {"threshold": best_threshold, "f1": best_f1}, best_f1
+
 
 
 # def tune_threshold(y_true, y_probs, df=None, return_series=None):

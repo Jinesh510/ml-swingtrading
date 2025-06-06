@@ -65,8 +65,10 @@ def load_processed_data(ticker):
     # df = label_multiclass_excess_return(df)
 
     #regression model
-    df = label_excess_return_regression(df)
+    # df = label_excess_return_regression(df)
 
+    # binary classifier model
+    df = label_prob_3pct_gain(df)
 
     df = df.dropna().reset_index(drop=True)
     return df
@@ -300,10 +302,10 @@ def train_lightgbm(df, ticker):
     # sample_weights = df.get("sample_weight", pd.Series([1.0] * len(df)))
 
     print(f"📊 Features being used for {ticker}: {feature_cols}")
-    # model = lgb.LGBMClassifier(**LIGHTGBM_PARAMS)
+    model = lgb.LGBMClassifier(**LIGHTGBM_PARAMS)
 
     # regression model
-    model = lgb.LGBMRegressor(**LIGHTGBM_PARAMS)
+    # model = lgb.LGBMRegressor(**LIGHTGBM_PARAMS)
 
 
     if "ticker" in feature_cols:
@@ -345,12 +347,20 @@ def load_model(ticker):
 
 
 # regression model
+# def predict_signal(df, model):
+#     X = df[model.feature_name_]
+#     df["pred_value"] = model.predict(X)
+#     # df["signal"] = (df["pred_value"] > 0.02).astype(int)  # Predicting excess return > 2%
+
+#     return df
+
+# binary classifier model
+
 def predict_signal(df, model):
     X = df[model.feature_name_]
-    df["pred_value"] = model.predict(X)
-    # df["signal"] = (df["pred_value"] > 0.02).astype(int)  # Predicting excess return > 2%
-
+    df["pred_prob"] = model.predict_proba(X)[:, 1]  # For binary classification
     return df
+
 
 
 def add_advanced_features(df,ticker):
@@ -622,7 +632,8 @@ def generate_signals(df, model, threshold=THRESHOLD, topk=TOP_K, signal_mode=SIG
         else:
             df["threshold"] = threshold
         
-        # df["signal"] = (df["pred_prob"] >= df["threshold"]).astype(int)
+        #binary classifier
+        df["signal"] = (df["pred_prob"] >= df["threshold"]).astype(int)
 
         #multi-class target variable changes
         # Generate signal if predicted class is Buy (3) or Strong Buy (4) AND confidence > threshold
@@ -630,7 +641,7 @@ def generate_signals(df, model, threshold=THRESHOLD, topk=TOP_K, signal_mode=SIG
 
 
         # Regression model logic
-        df["signal"] = (df["pred_value"] >= threshold).astype(int)
+        # df["signal"] = (df["pred_value"] >= threshold).astype(int)
 
 
         # df = apply_post_prediction_filters(df)
@@ -1075,3 +1086,15 @@ def extract_signals_from_multiclass_preds(pred_probs):
     signal = (pred_class >= 3).astype(int)
     confidence = pred_probs[:, 4]  # probability of class 4 (Strong Buy)
     return signal, confidence
+
+def label_prob_3pct_gain(df):
+    df = df.sort_values("Date").reset_index(drop=True)
+    df["target"] = 0
+
+    for i in range(len(df)):
+        window = df["Close"].iloc[i+1:i+11]  # next 10 days
+        entry_price = df["Close"].iloc[i]
+        if (window >= entry_price * 1.03).any():
+            df.at[i, "target"] = 1
+    return df
+

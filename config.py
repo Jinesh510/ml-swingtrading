@@ -103,9 +103,25 @@ MAX_HOLD_DAYS = 30        # Optional limit
 
 #regression model
 
+# LIGHTGBM_PARAMS = {
+#     "objective": "regression",
+#     "metric": "rmse",
+#     "learning_rate": 0.03,
+#     "num_leaves": 64,
+#     "max_depth": 6,
+#     "subsample": 0.9,
+#     "colsample_bytree": 0.9,
+#     "random_state": 42
+# }
+
+
+SIGNAL_THRESHOLD = 0.02
+
+#binary classifier
+
 LIGHTGBM_PARAMS = {
-    "objective": "regression",
-    "metric": "rmse",
+    "objective": "binary",
+    "metric": "binary_logloss",
     "learning_rate": 0.03,
     "num_leaves": 64,
     "max_depth": 6,
@@ -113,7 +129,4 @@ LIGHTGBM_PARAMS = {
     "colsample_bytree": 0.9,
     "random_state": 42
 }
-
-
-SIGNAL_THRESHOLD = 0.02
 
