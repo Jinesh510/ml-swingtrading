@@ -8,7 +8,7 @@ from config import MODEL_DIR, PLOTS_DIR, PROB_DIST_DIR, RESULTS_DIR, SIGNAL_MODE
 from threshold_tuning_utils import tune_threshold_multiclass
 # from threshold_tuning_utils import walk_forward_threshold_tuning
 from threshold_tuning_utils import tune_threshold_binary
-from utils import apply_regime_based_filtering, apply_training_filters, generate_ensemble_signals, generate_signals, label_profitable_trades, load_processed_data, simulate_trades, tag_market_regime
+from utils import analyze_alpha_concentration, apply_regime_based_filtering, apply_training_filters, generate_ensemble_signals, generate_signals, label_profitable_trades, load_processed_data, simulate_trades, tag_market_regime
 from utils import train_lightgbm
 from backtest import predict_signal
 from trade_analyzer import analyze_trades
@@ -244,124 +244,239 @@ if __name__ == "__main__":
     df_test_pred = apply_regime_based_filtering(df_test_pred)
 
 
-    results=[]
-    print("\n📈 Evaluating on test set per ticker:")
+    # results=[]
+    # print("\n📈 Evaluating on test set per ticker:")
+    # for test_ticker in tickers:
+    #     df_ticker_test = df_test_pred[df_test_pred["ticker"] == test_ticker].copy()
+
+    #     # df_ticker_test = df_test_labeled[df_test_labeled["ticker"] == test_ticker].copy()
+    #     # tuned_threshold = per_ticker_thresholds[test_ticker]
+
+    #     # df_ticker_test = generate_signals(df_ticker_test, model, threshold=tuned_threshold, signal_mode=SIGNAL_MODE, use_dynamic_threshold=False)
+        
+    #     #ensemble model
+    #     # df_ticker_test = generate_ensemble_signals(
+    #     #     df_ticker_test,
+    #     #     regression_model=regression_model,
+    #     #     classification_model=classification_model,
+    #     #     topk=TOP_K  # From config
+    #     # ) 
+
+    #     # pr_auc = plot_precision_recall(df_ticker_test, test_ticker)
+    #     # plot_probability_histogram(df_ticker_test, test_ticker, set_name="test")
+        
+    #     #regression model
+    #     # plot_pred_vs_actual(df_ticker_test, test_ticker, set_name="test")
+
+    #     # regression model Optional: Inspect distribution of predicted values where signal == 1
+    #     # signal_df = df_ticker_test[df_ticker_test["signal"] == 1]
+    #     # if not signal_df.empty:
+    #     #     print(f"\n📊 {test_ticker} - Signal Predicted Value Stats:")
+    #     #     print(signal_df["pred_value"].describe(percentiles=[.25, .5, .75, .9, .95]))
+    #     # else:
+    #     #     print(f"\n⚠️ {test_ticker} - No signals triggered in test set.")
+
+
+    #     trades_df = simulate_trades(df_ticker_test,test_ticker)
+    #     # trades_df["P&L %"].hist(bins=50)
+    #     # plt.title("Distribution of Trade P&L")
+    #     # plt.xlabel("P&L %")
+    #     # plt.ylabel("Trade Count")
+    #     # plt.grid(True)
+    #     # plt.show()
+
+    #     trades_df.to_csv(os.path.join(TRADES_DIR, f"trades_{test_ticker}.csv"), index=False)
+    #     print(f"📝 Saved trades_{test_ticker}.csv and PR curve image.")
+
+    #     _, metrics = analyze_trades(trades_df, test_ticker)
+
+    #     df_ticker_test.set_index("Date", inplace=True)
+    #     # df_eval = df_ticker_test[(df_ticker_test["signal"] == 1) | (df_ticker_test["target"] == 1)].copy()
+
+    #     # y_true_test = df_eval["target"]
+    #     # y_pred_test = df_eval["signal"]
+
+    #     # y_true_test = df_ticker_test["target"]
+    #     # y_pred_test = df_ticker_test["signal"]
+
+    #     # multi-class Convert to binary: class 3 or 4 = signal (positive)
+    #     # y_true_test = (df_ticker_test["target"] >= 3).astype(int)
+    #     # y_pred_test = df_ticker_test["signal"]
+
+    #     #regression model
+    #     # y_true_test = df_ticker_test["target"]
+    #     # y_pred_test = df_ticker_test["pred_value"]
+
+
+    #     #ensemble model
+    #     y_true = (df_ticker_test["target"] > 0).astype(int)  # or use your existing binary definition
+    #     y_pred = df_ticker_test["signal"]
+
+    #     print(classification_report(y_true, y_pred))
+
+
+    #     # accuracy = accuracy_score(y_true_test, y_pred_test)
+    #     # precision = precision_score(y_true_test, y_pred_test, zero_division=0)
+    #     # recall = recall_score(y_true_test, y_pred_test, zero_division=0)
+    #     # f1 = f1_score(y_true_test, y_pred_test, zero_division=0)
+        
+    #     #regression model
+
+    #     # rmse = mean_squared_error(y_true_test, y_pred_test, squared=False)
+    #     # r2 = r2_score(y_true_test, y_pred_test)
+
+
+    #     trades_df["Cumulative Equity"] = (1 + trades_df["P&L %"] / 100).cumprod()
+    #     final_return = trades_df["Cumulative Equity"].iloc[-1]
+
+    #     # print("\n📊 Classification Report:")
+    #     # print(classification_report(df_ticker_test["target"], df_ticker_test["pred_class"]))
+
+
+    #     metrics_to_print = {
+    #         "Ticker": test_ticker,
+    #         # "Accuracy": round(accuracy,2),
+    #         # "Precision": round(precision,2),
+    #         # "Recall": round(recall,2),
+    #         # "F1 Score": round(f1,2),
+    #         # "optimal_threshold": round(tuned_threshold, 2),
+    #         "Final Cumulative Return": round(final_return,2),
+    #         # 'PR AUC':pr_auc,
+    #         # "RMSE": round(rmse, 4),
+    #         # "R2 Score": round(r2, 4),
+
+    #         # "train_hit_rate":train_hit_rate,
+    #         # "train_sharpe_ratio": train_sharpe_ratio,
+    #         # "train_max_drawdown":train_max_drawdown,
+    #         # "train_cagr":train_cagr,
+    #         'test_num_trades':metrics['num_trades'],
+    #         "test_hit_rate":metrics['hit_rate'],
+    #         "test_sharpe_ratio": metrics['sharpe_ratio'],
+    #         "test_max_drawdown":metrics['max_drawdown'],
+    #         "test_cagr":metrics['cagr']
+            
+    #     }
+        
+    #     # metrics["PR AUC"] = pr_auc
+    #     results.append(metrics_to_print)
+
+
+    # exit conditions tuning
+exit_conditions_list = [
+    {"TRAILING_STOPLOSS": 0.10, "PROFIT_TARGET": 0.08, "MAX_HOLD_DAYS": 30},  # Baseline
+    {"TRAILING_STOPLOSS": 0.15, "PROFIT_TARGET": 0.12, "MAX_HOLD_DAYS": 45},  # Moderate swing
+    {"TRAILING_STOPLOSS": 0.20, "PROFIT_TARGET": 0.15, "MAX_HOLD_DAYS": 50},  # Wider range
+    {"TRAILING_STOPLOSS": 0.25, "PROFIT_TARGET": 0.20, "MAX_HOLD_DAYS": 60},  # Strong trend capture
+    {"TRAILING_STOPLOSS": 0.30, "PROFIT_TARGET": 0.25, "MAX_HOLD_DAYS": 75},  # High volatility plays
+
+    {"TRAILING_STOPLOSS": 0.10, "PROFIT_TARGET": 0.20, "MAX_HOLD_DAYS": 50},  # Aggressive target, tight SL
+    {"TRAILING_STOPLOSS": 0.20, "PROFIT_TARGET": 0.10, "MAX_HOLD_DAYS": 50},  # Conservative PT, loose SL
+
+    {"TRAILING_STOPLOSS": 0.12, "PROFIT_TARGET": 0.15, "MAX_HOLD_DAYS": 40},  # Balanced swing
+    {"TRAILING_STOPLOSS": 0.18, "PROFIT_TARGET": 0.22, "MAX_HOLD_DAYS": 60},  # Mid/long swing
+    {"TRAILING_STOPLOSS": 0.22, "PROFIT_TARGET": 0.30, "MAX_HOLD_DAYS": 90},  # Long hold, breakout trend
+    {"TRAILING_STOPLOSS": 0.20, "PROFIT_TARGET": 0.30, "MAX_HOLD_DAYS": 200},  # Long hold, breakout trend
+
+    {"TRAILING_STOPLOSS": 0.15, "PROFIT_TARGET": 0.20, "MAX_HOLD_DAYS": 200},  # Long hold, breakout trend
+    {"TRAILING_STOPLOSS": 0.15, "PROFIT_TARGET": 0.10, "MAX_HOLD_DAYS": 200},  # Long hold, breakout trend
+    {"TRAILING_STOPLOSS": 0.25, "PROFIT_TARGET": 0.20, "MAX_HOLD_DAYS": 200},  # Long hold, breakout trend
+
+
+    {"TRAILING_STOPLOSS": 0.10, "PROFIT_TARGET": 0.10, "MAX_HOLD_DAYS": 20},  # Fast mean reversion
+    {"TRAILING_STOPLOSS": 0.05, "PROFIT_TARGET": 0.15, "MAX_HOLD_DAYS": 15},  # Ultra tight scalping
+]
+
+for i, exit_params in enumerate(exit_conditions_list, start=1):
+    print(f"\n🚀 Running Exit Strategy {i} - Params: {exit_params}")
+    results = []
+
     for test_ticker in tickers:
         df_ticker_test = df_test_pred[df_test_pred["ticker"] == test_ticker].copy()
 
-        # df_ticker_test = df_test_labeled[df_test_labeled["ticker"] == test_ticker].copy()
-        # tuned_threshold = per_ticker_thresholds[test_ticker]
+        # ✅ Inject parameters into simulate_trades dynamically
+        trades_df = simulate_trades(
+            df_ticker_test,
+            test_ticker,
+            trailing_stop=exit_params["TRAILING_STOPLOSS"],
+            profit_target=exit_params["PROFIT_TARGET"],
+            max_hold_days=exit_params["MAX_HOLD_DAYS"]
+        )
 
-        # df_ticker_test = generate_signals(df_ticker_test, model, threshold=tuned_threshold, signal_mode=SIGNAL_MODE, use_dynamic_threshold=False)
-        
-        #ensemble model
-        # df_ticker_test = generate_ensemble_signals(
-        #     df_ticker_test,
-        #     regression_model=regression_model,
-        #     classification_model=classification_model,
-        #     topk=TOP_K  # From config
-        # ) 
-
-        # pr_auc = plot_precision_recall(df_ticker_test, test_ticker)
-        # plot_probability_histogram(df_ticker_test, test_ticker, set_name="test")
-        
-        #regression model
-        # plot_pred_vs_actual(df_ticker_test, test_ticker, set_name="test")
-
-        # regression model Optional: Inspect distribution of predicted values where signal == 1
-        # signal_df = df_ticker_test[df_ticker_test["signal"] == 1]
-        # if not signal_df.empty:
-        #     print(f"\n📊 {test_ticker} - Signal Predicted Value Stats:")
-        #     print(signal_df["pred_value"].describe(percentiles=[.25, .5, .75, .9, .95]))
-        # else:
-        #     print(f"\n⚠️ {test_ticker} - No signals triggered in test set.")
-
-
-        trades_df = simulate_trades(df_ticker_test,test_ticker)
-        # trades_df["P&L %"].hist(bins=50)
-        # plt.title("Distribution of Trade P&L")
-        # plt.xlabel("P&L %")
-        # plt.ylabel("Trade Count")
-        # plt.grid(True)
-        # plt.show()
-
-        trades_df.to_csv(os.path.join(TRADES_DIR, f"trades_{test_ticker}.csv"), index=False)
-        print(f"📝 Saved trades_{test_ticker}.csv and PR curve image.")
+        trades_df.to_csv(os.path.join(TRADES_DIR, f"trades_{test_ticker}_exit{i}.csv"), index=False)
 
         _, metrics = analyze_trades(trades_df, test_ticker)
 
         df_ticker_test.set_index("Date", inplace=True)
-        # df_eval = df_ticker_test[(df_ticker_test["signal"] == 1) | (df_ticker_test["target"] == 1)].copy()
-
-        # y_true_test = df_eval["target"]
-        # y_pred_test = df_eval["signal"]
-
-        # y_true_test = df_ticker_test["target"]
-        # y_pred_test = df_ticker_test["signal"]
-
-        # multi-class Convert to binary: class 3 or 4 = signal (positive)
-        # y_true_test = (df_ticker_test["target"] >= 3).astype(int)
-        # y_pred_test = df_ticker_test["signal"]
-
-        #regression model
-        # y_true_test = df_ticker_test["target"]
-        # y_pred_test = df_ticker_test["pred_value"]
-
-
-        #ensemble model
-        y_true = (df_ticker_test["target"] > 0).astype(int)  # or use your existing binary definition
+        y_true = (df_ticker_test["target"] > 0).astype(int)
         y_pred = df_ticker_test["signal"]
-
         print(classification_report(y_true, y_pred))
-
-
-        # accuracy = accuracy_score(y_true_test, y_pred_test)
-        # precision = precision_score(y_true_test, y_pred_test, zero_division=0)
-        # recall = recall_score(y_true_test, y_pred_test, zero_division=0)
-        # f1 = f1_score(y_true_test, y_pred_test, zero_division=0)
-        
-        #regression model
-
-        # rmse = mean_squared_error(y_true_test, y_pred_test, squared=False)
-        # r2 = r2_score(y_true_test, y_pred_test)
-
 
         trades_df["Cumulative Equity"] = (1 + trades_df["P&L %"] / 100).cumprod()
         final_return = trades_df["Cumulative Equity"].iloc[-1]
 
-        # print("\n📊 Classification Report:")
-        # print(classification_report(df_ticker_test["target"], df_ticker_test["pred_class"]))
-
-
         metrics_to_print = {
+            "Exit_Setup": f"Exit_{i}",
             "Ticker": test_ticker,
-            # "Accuracy": round(accuracy,2),
-            # "Precision": round(precision,2),
-            # "Recall": round(recall,2),
-            # "F1 Score": round(f1,2),
-            # "optimal_threshold": round(tuned_threshold, 2),
-            "Final Cumulative Return": round(final_return,2),
-            # 'PR AUC':pr_auc,
-            # "RMSE": round(rmse, 4),
-            # "R2 Score": round(r2, 4),
-
-            # "train_hit_rate":train_hit_rate,
-            # "train_sharpe_ratio": train_sharpe_ratio,
-            # "train_max_drawdown":train_max_drawdown,
-            # "train_cagr":train_cagr,
-            'test_num_trades':metrics['num_trades'],
-            "test_hit_rate":metrics['hit_rate'],
+            "Final Cumulative Return": round(final_return, 2),
+            'test_num_trades': metrics['num_trades'],
+            "test_hit_rate": metrics['hit_rate'],
             "test_sharpe_ratio": metrics['sharpe_ratio'],
-            "test_max_drawdown":metrics['max_drawdown'],
-            "test_cagr":metrics['cagr']
-            
+            "test_max_drawdown": metrics['max_drawdown'],
+            "test_cagr": metrics['cagr']
         }
-        
-        # metrics["PR AUC"] = pr_auc
+
         results.append(metrics_to_print)
 
-
+    # Save exit-wise result
     summary_df = pd.DataFrame(results)
-    summary_df.to_csv(os.path.join(RESULTS_DIR,"merged_model_test_summary.csv"), index=False)
-    print("✅ Summary saved to merged_model_test_summary.csv")
+    outpath = os.path.join(RESULTS_DIR, f"merged_model_test_summary_exit{i}.csv")
+    summary_df.to_csv(outpath, index=False)
+    print(f"✅ Saved summary for Exit Strategy {i} to {outpath}")
+
+# # 🔍 Analyze alpha concentration across exit setups
+# all_results = []
+
+# # Collect all exit summary files into one DataFrame
+# for i in range(1, len(exit_conditions_list) + 1):
+#     file_path = os.path.join(RESULTS_DIR, f"merged_model_test_summary_exit{i}.csv")
+#     df_i = pd.read_csv(file_path)
+#     df_i["Exit_Setup"] = f"Exit_{i}"  # Ensure this column exists
+#     all_results.append(df_i)
+
+# combined_df = pd.concat(all_results, ignore_index=True)
+# alpha_df = analyze_alpha_concentration(combined_df)
+# alpha_df.to_csv("alpha_concentration_summary.csv", index=False)
+# print("📊 Alpha Concentration Summary saved to alpha_concentration_summary.csv")
+
+# --------------------------------------------
+# Filter exit setups where Top 3 tickers have hit rate >= 70%
+# --------------------------------------------
+import glob
+
+qualified_exits = []
+
+for fpath in sorted(glob.glob(os.path.join(RESULTS_DIR, "merged_model_test_summary_exit*.csv"))):
+    df = pd.read_csv(fpath)
+    top3 = df.sort_values("test_cagr", ascending=False).head(3)
+
+    if all(top3["test_hit_rate"] >= 0.70):
+        exit_name = top3["Exit_Setup"].iloc[0]
+        mean_cagr = top3["test_cagr"].mean()
+        qualified_exits.append({
+            "Exit_Setup": exit_name,
+            "Top3_Mean_CAGR": round(mean_cagr, 3),
+            "Top3_HitRate_Min": round(top3["test_hit_rate"].min(), 2),
+            "Top3_Tickers": ", ".join(top3["Ticker"])
+        })
+
+qualified_df = pd.DataFrame(qualified_exits)
+qualified_df.to_csv("qualified_exit_strategies.csv", index=False)
+print("📊 Filtered setups with top 3 hit rate ≥ 70% saved to qualified_exit_strategies.csv")
+
+
+
+
+    # summary_df = pd.DataFrame(results)
+    # summary_df.to_csv(os.path.join(RESULTS_DIR,"merged_model_test_summary.csv"), index=False)
+    # print("✅ Summary saved to merged_model_test_summary.csv")
 

@@ -1201,3 +1201,24 @@ def apply_regime_based_filtering(df):
     df.loc[bear_mask & (df["final_rank"] >= 0.98), "signal"] = 1
 
     return df
+
+def analyze_alpha_concentration(df):
+    df = df.copy()
+    grouped = df.groupby("Exit_Setup")
+    output = []
+
+    for setup, sub_df in grouped:
+        sub_df_sorted = sub_df.sort_values("test_cagr", ascending=False)
+        top3 = sub_df_sorted.head(3)
+        bottom3 = sub_df_sorted.tail(3)
+
+        output.append({
+            "Exit_Setup": setup,
+            "Top3_Mean_CAGR": top3["test_cagr"].mean(),
+            "Top3_STD_CAGR": top3["test_cagr"].std(),
+            "Bottom3_Mean_CAGR": bottom3["test_cagr"].mean(),
+            "Bottom3_STD_CAGR": bottom3["test_cagr"].std()
+        })
+
+    return pd.DataFrame(output)
+
