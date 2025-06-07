@@ -168,7 +168,7 @@ def get_feature_columns(target_type=TARGET_TYPE, cap_type=CAP_TYPE, peer_name=No
         "body_size_ratio"
     ]
     
-    # base_features += interaction_features
+    base_features += interaction_features
 
     advanced_technical_features = [
                     "price_to_vwap",
@@ -921,14 +921,26 @@ def add_peer_relative_features(df):
 
     return df
 
+# def tag_market_regime(df):
+#     df = df.copy()
+#     df["market_regime"] = "neutral"
+
+#     df.loc[(df["nifty_ret_3d"] > 0.02) & (df["vix"] < 15), "market_regime"] = "bull"
+#     df.loc[(df["nifty_ret_3d"] < -0.02) | (df["vix"] > 18), "market_regime"] = "bear"
+
+#     return df
+
+
+# market regime for 10d target
 def tag_market_regime(df):
     df = df.copy()
     df["market_regime"] = "neutral"
 
-    df.loc[(df["nifty_ret_3d"] > 0.02) & (df["vix"] < 15), "market_regime"] = "bull"
-    df.loc[(df["nifty_ret_3d"] < -0.02) | (df["vix"] > 18), "market_regime"] = "bear"
+    df.loc[(df["nifty_ret_10d"] > 0.01) & (df["vix_lag1"] < 15), "market_regime"] = "bull"
+    df.loc[(df["nifty_ret_10d"] < -0.01) | (df["vix_lag1"] > 20), "market_regime"] = "bear"
 
     return df
+
 
 #### New code for 10d sector outperformance exp
 
@@ -1173,5 +1185,19 @@ def generate_ensemble_signals(df, regression_model, classification_model, topk=3
     # Generate signal based on top-k
     df["rank"] = df["final_rank"].rank(method="first", ascending=False)
     df["signal"] = (df["rank"] <= topk).astype(int)
+
+    return df
+
+def apply_regime_based_filtering(df):
+    df = df.copy()
+    df["signal"] = 0
+
+    bull_mask = df["market_regime"] == "bull"
+    bear_mask = df["market_regime"] == "bear"
+    neutral_mask = df["market_regime"] == "neutral"
+
+    df.loc[bull_mask & (df["final_rank"] >= 0.85), "signal"] = 1
+    df.loc[neutral_mask & (df["final_rank"] >= 0.90), "signal"] = 1
+    df.loc[bear_mask & (df["final_rank"] >= 0.98), "signal"] = 1
 
     return df

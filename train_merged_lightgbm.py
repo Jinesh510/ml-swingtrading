@@ -8,7 +8,7 @@ from config import MODEL_DIR, PLOTS_DIR, PROB_DIST_DIR, RESULTS_DIR, SIGNAL_MODE
 from threshold_tuning_utils import tune_threshold_multiclass
 # from threshold_tuning_utils import walk_forward_threshold_tuning
 from threshold_tuning_utils import tune_threshold_binary
-from utils import apply_training_filters, generate_ensemble_signals, generate_signals, label_profitable_trades, load_processed_data, simulate_trades
+from utils import apply_regime_based_filtering, apply_training_filters, generate_ensemble_signals, generate_signals, label_profitable_trades, load_processed_data, simulate_trades, tag_market_regime
 from utils import train_lightgbm
 from backtest import predict_signal
 from trade_analyzer import analyze_trades
@@ -223,6 +223,8 @@ if __name__ == "__main__":
     regression_model = joblib.load(os.path.join(MODEL_DIR,"model_regression.pkl"))
     classification_model = joblib.load(os.path.join(MODEL_DIR,"model_classifier.pkl"))
 
+    df_test = tag_market_regime(df_test)
+
     df_test_pred = pd.concat([
         generate_ensemble_signals(
             df_test[df_test["ticker"] == ticker].copy(),
@@ -236,7 +238,10 @@ if __name__ == "__main__":
     df_test_pred["rank_reg"] = df_test_pred.groupby("Date")["pred_value"].rank(pct=True)
     df_test_pred["ensemble_score"] = 0.5 * df_test_pred["rank_clf"] + 0.5 * df_test_pred["rank_reg"]
     df_test_pred["final_rank"] = df_test_pred.groupby("Date")["ensemble_score"].rank(pct=True)
-    df_test_pred["signal"] = (df_test_pred["final_rank"] >= 0.95).astype(int)
+    # df_test_pred["signal"] = (df_test_pred["final_rank"] >= 0.95).astype(int)
+
+    #adding market regime logic
+    df_test_pred = apply_regime_based_filtering(df_test_pred)
 
 
     results=[]

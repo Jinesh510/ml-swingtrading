@@ -34,9 +34,9 @@ CAP_TYPE = "midcap"      # Options: "largecap", "midcap", "smallcap"
 PEER_NAME = None
 
 # original exit conditions aligned with target
-TRAILING_STOPLOSS = 0.1   # 4%
-PROFIT_TARGET = 0.08       # 3%
-MAX_HOLD_DAYS = 30        # Optional limit
+TRAILING_STOPLOSS = 0.2   # 4%
+PROFIT_TARGET = 0.15       # 3%
+MAX_HOLD_DAYS = 50        # Optional limit
 
 # Exit Logic Configuration (for simulate_trades)
 # EXIT_SMA_PERIOD = 5             # for SMA_X breach
