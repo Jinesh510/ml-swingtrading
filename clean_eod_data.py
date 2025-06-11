@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime
 
 DIRS = {
-    "stock": ("data/raw_eod", "data/nse_eod"),
+    "stock": ("data/nse_raw", "data/nse_eod"),
     "index": ("data/index_raw", "data/index_eod"),
     "sector": ("data/sector_raw", "data/sector_eod")
 }

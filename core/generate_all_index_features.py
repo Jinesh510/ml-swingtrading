@@ -3,7 +3,7 @@
 
 import os
 import pandas as pd
-from index_utils import compute_index_features
+from core.index_utils import compute_index_features
 
 INPUT_DIRS = {
     "index": "data/index_eod",

@@ -54,13 +54,18 @@ def tune_threshold_multiclass(y_true, y_prob, thresholds=None):
 def tune_threshold_binary(y_true, y_probs, lower=0.3, upper=0.7, step=0.05):
     best_f1 = 0
     best_threshold = lower
+    best_precision = 0
+    best_recall = 0
     for threshold in np.arange(lower, upper, step):
         y_pred = (y_probs >= threshold).astype(int)
         f1 = f1_score(y_true, y_pred)
         if f1 > best_f1:
             best_f1 = f1
             best_threshold = threshold
-    return {"threshold": best_threshold, "f1": best_f1}, best_f1
+            best_precision = precision_score(y_true, y_pred)
+            best_recall = recall_score(y_true, y_pred)
+    return {"threshold": best_threshold, "f1": best_f1, "precision": best_precision,
+        "recall": best_recall}, best_f1
 
 
 

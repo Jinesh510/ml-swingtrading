@@ -2,8 +2,8 @@ import pandas as pd
 import lightgbm as lgb
 from itertools import product
 from sklearn.metrics import f1_score, precision_score, recall_score
-from utils import add_advanced_features, train_lightgbm, get_target_definition, drop_target_related_columns, get_feature_columns
-from config import TARGET_TYPE, CAP_TYPE
+from core.utils import add_advanced_features, train_lightgbm, get_target_definition, drop_target_related_columns, get_feature_columns
+from core.config import TARGET_TYPE, CAP_TYPE
 
 # Load your training dataframe
 ticker="MPHASIS"

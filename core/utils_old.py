@@ -1,11 +1,12 @@
-from index_utils import compute_index_features, compute_sector_features, load_vix_index
+from core.feature_generator import generate_features
+from core.index_utils import compute_index_features, compute_sector_features, get_sector_for_bucket, load_vix_index
 import pandas as pd
 import numpy as np
 import lightgbm as lgb
 import os
 import joblib
 import pandas_ta as ta
-from config import CAP_TYPE, FEATURE_COLS, LIGHTGBM_PARAMS, MAX_HOLD_DAYS, MODEL_DIR, PEER_NAME, PROFIT_TARGET, SIGNAL_MODE, TARGET_TYPE, THRESHOLD, TOP_K, TRAILING_STOPLOSS
+from core.config import CAP_TYPE, FEATURE_COLS, LIGHTGBM_PARAMS, MAX_HOLD_DAYS, MODEL_DIR, PEER_NAME, PROFIT_TARGET, SIGNAL_MODE, TARGET_TYPE, THRESHOLD, TOP_K, TRAILING_STOPLOSS
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 # from config import (
 #     TRAILING_STOPLOSS,
@@ -102,63 +103,190 @@ def get_target_definition(df, target_type="3d_1pct"):
     else:
         raise ValueError(f"Unsupported target type: {target_type}")
     return df
-def get_feature_columns(target_type=TARGET_TYPE, cap_type=CAP_TYPE, peer_name=None,include_index_and_sector=True):
-    base_features = [
-        "return_1d", 
-        "return_3d", 
-        "atr_pct", 
-        "bb_width",
-        "volume_zscore", 
-        # "rsi_14", 
-        # "macd_hist",
-        "price_vs_sma_10",
-        "breakout_flag_5d"
-    ]
 
-    base_features = [
+# def get_feature_columns(target_type=TARGET_TYPE, cap_type=CAP_TYPE, peer_name=None,include_index_and_sector=True):
+#     base_features = [
+#         "return_1d", 
+#         "return_3d", 
+#         "atr_pct", 
+#         "bb_width",
+#         "volume_zscore", 
+#         # "rsi_14", 
+#         # "macd_hist",
+#         "price_vs_sma_10",
+#         "breakout_flag_5d"
+#     ]
+
+#     base_features = [
         
+#         "return_1d", "return_3d", "return_5d",
+#         "sma_ratio", "ema_ratio", "price_trend",
+#         "volatility_5d", "volatility_rank_5d",
+#         "vix_lag1",
+#         # New breakout/momentum features
+#         "breakout_5d",         # Close relative to recent high
+#         "open_close_ratio",    # Intra-day strength
+#         "gap_up_1pct",         # Gap-up flag
+#         "bullish_bar",          # Bullish candle
+
+#          # 🟩 New pattern signals
+#         "3d_consistent_up",
+#         "new_high_5d",
+
+#         # 🟪 Interaction features
+#         "momentum_score",           # return_5d * ema_ratio
+#         "vol_adjusted_return",      # return_5d / volatility_5d
+        
+#         #newer
+#         "breakout_10d",
+#         "rel_5d_strength",        
+#         "vol_adj_bar",
+#         "ema_diff_lag1",
+
+#         #index features
+#         "nifty_ret_10d",
+
+#         # Reversal signals (optional)
+#         "prev_day_reversal", 
+#         "strong_reversal_candle",
+
+#         #cross-sectional features
+#         "rank_return_5d", 
+#         "zscore_return_5d",
+
+#         #basic technical indicators
+#         "rsi_14",
+#         "macd_hist"
+
+
+
+#     ]
+
+#     interaction_features = [
+#         "rsi_14_x_return_1d",
+#         "volume_ratio_5d_x_volatility_5d",
+#         "macd_hist_x_zscore_5d",
+#         "price_range_ratio",
+#         "body_size_ratio"
+#     ]
+    
+#     base_features += interaction_features
+
+#     advanced_technical_features = [
+#                     "price_to_vwap",
+#                     "price_to_sma_20",
+#                     "return_5d",
+#                     "return_20d",
+#                     "rsi_30",
+#                     # "macd_histogram",
+#                     "bb_position",
+#                     "volume_ratio",
+#                     "gap"
+#                 ]
+
+#     enriched_features = [
+#         # 🔸 Fundamental Proxies
+#         "price_momentum_60d",
+#         "price_momentum_120d",
+#         "volatility_rank",
+#         "volume_trend_30d",
+
+#         # 🔸 Market Regime Features
+#         "market_volatility",
+#         "volatility_regime",
+#         "market_momentum_20d",
+#         "market_trend",
+#         "market_rsi",
+
+#         # 🔸 Relative to NIFTY
+#         "relative_return_1d",
+#         "relative_return_5d",
+#         "relative_return_20d",
+#         "beta_60d",
+
+#         # 🔸 Relative to Sector
+#         "relative_sector_return_1d",
+#         "relative_sector_return_5d",
+#         "relative_sector_return_20d",
+#     ]
+
+#     lagged_features = [
+#         "Close_lag1", "Close_lag2", "Close_lag3",
+#         "rsi_14_lag1", "rsi_14_lag2", "rsi_14_lag3",
+#         "macd_hist_lag1", "macd_hist_lag2", "macd_hist_lag3"
+#     ]
+    
+#     # base_features = base_features + advanced_technical_features + enriched_features
+#     # base_features += lagged_features 
+
+#     # if include_index_and_sector and cap_type in ["midcap", "largecap"]:
+#     #     base_features += [
+#     #         # "nifty_ret_3d", 
+#     #         "nifty_volatility_10d", 
+#     #         "nifty_rsi_14",
+#     #         # "sector_ret_3d", 
+#     #         "sector_volatility_10d", 
+#     #         "sector_rsi_14"
+#     #     ]
+
+#     #     if "5d" in TARGET_TYPE:
+#     #         base_features += ["nifty_ret_5d","sector_ret_5d"]
+#     #     elif "3d" in TARGET_TYPE:
+#     #         base_features += ["nifty_ret_3d","sector_ret_3d"]
+#     #     elif "10d" in TARGET_TYPE:
+#     #         base_features += ["nifty_ret_10d","sector_ret_10d"]
+
+
+    
+
+
+#     if peer_name is None:
+#         peer_name = []
+#     else:
+#         base_features += [
+#             f"{peer_name}_return_3d",
+#             f"{peer_name}_volume_zscore",
+#             f"{peer_name}_price_vs_sma_10",
+#             f"{peer_name}_breakout_flag_5d"
+#         ]
+
+#     ## experiment overriding everything 
+#     # base_features =[
+#     #                 'market_volatility',
+#     #                 'nifty_volatility_10d',
+#     #                 'market_momentum_20d',
+#     #                 'sector_rsi_14',
+#     #                 'sector_ret_3d',
+#     #                 'sector_volatility_10d',
+#     #                 'market_rsi',
+#     #                 'nifty_ret_3d',
+#     #                 'nifty_rsi_14',
+#     #                 'atr_pct',
+#     #                 'volume_zscore',
+#     #                 'bb_position',
+#     #                 'price_vs_sma_10',
+#     #                 'rel_ret_3d',
+#     #                 'rsi_14_rank_within_peers',
+#     #                 'vix'
+
+#     # ]
+
+#     return base_features
+
+def get_feature_columns(target_type = TARGET_TYPE, include_interactions=True, include_index_features=True, include_index_and_sector=True):
+    base_features = [
         "return_1d", "return_3d", "return_5d",
-        "sma_ratio", "ema_ratio", "price_trend",
+        "sma_ratio", "ema_ratio",
         "volatility_5d", "volatility_rank_5d",
-        "vix_lag1",
-        # New breakout/momentum features
-        "breakout_5d",         # Close relative to recent high
-        "open_close_ratio",    # Intra-day strength
-        "gap_up_1pct",         # Gap-up flag
-        "bullish_bar",          # Bullish candle
-
-         # 🟩 New pattern signals
-        "3d_consistent_up",
-        "new_high_5d",
-
-        # 🟪 Interaction features
-        "momentum_score",           # return_5d * ema_ratio
-        "vol_adjusted_return",      # return_5d / volatility_5d
-        
-        #newer
-        "breakout_10d",
-        "rel_5d_strength",        
-        "vol_adj_bar",
-        "ema_diff_lag1",
-
-        #index features
-        "nifty_ret_10d",
-
-        # Reversal signals (optional)
-        "prev_day_reversal", 
+        "vix_lag1", "breakout_5d", "open_close_ratio","gap_up_1pct",
+        "momentum_score", "vol_adjusted_return","price_trend",
+        "breakout_10d", "vol_adj_bar", 
+        "ema_diff_lag1", "prev_day_reversal", "bullish_bar","3d_consistent_up","new_high_5d",
         "strong_reversal_candle",
-
-        #cross-sectional features
-        "rank_return_5d", 
-        "zscore_return_5d",
-
-        #basic technical indicators
-        "rsi_14",
-        "macd_hist"
-
-
-
+        "rank_return_5d", "zscore_return_5d", 
+        "rsi_14", "macd_hist","high_close_ratio","low_close_ratio","true_range"
     ]
+
 
     interaction_features = [
         "rsi_14_x_return_1d",
@@ -167,110 +295,42 @@ def get_feature_columns(target_type=TARGET_TYPE, cap_type=CAP_TYPE, peer_name=No
         "price_range_ratio",
         "body_size_ratio"
     ]
-    
-    base_features += interaction_features
 
-    advanced_technical_features = [
-                    "price_to_vwap",
-                    "price_to_sma_20",
-                    "return_5d",
-                    "return_20d",
-                    "rsi_30",
-                    # "macd_histogram",
-                    "bb_position",
-                    "volume_ratio",
-                    "gap"
-                ]
-
-    enriched_features = [
-        # 🔸 Fundamental Proxies
-        "price_momentum_60d",
-        "price_momentum_120d",
-        "volatility_rank",
-        "volume_trend_30d",
-
-        # 🔸 Market Regime Features
-        "market_volatility",
-        "volatility_regime",
-        "market_momentum_20d",
-        "market_trend",
-        "market_rsi",
-
-        # 🔸 Relative to NIFTY
-        "relative_return_1d",
-        "relative_return_5d",
-        "relative_return_20d",
-        "beta_60d",
-
-        # 🔸 Relative to Sector
-        "relative_sector_return_1d",
-        "relative_sector_return_5d",
-        "relative_sector_return_20d",
-    ]
-
-    lagged_features = [
-        "Close_lag1", "Close_lag2", "Close_lag3",
-        "rsi_14_lag1", "rsi_14_lag2", "rsi_14_lag3",
-        "macd_hist_lag1", "macd_hist_lag2", "macd_hist_lag3"
-    ]
-    
-    # base_features = base_features + advanced_technical_features + enriched_features
-    # base_features += lagged_features 
-
-    # if include_index_and_sector and cap_type in ["midcap", "largecap"]:
-    #     base_features += [
-    #         # "nifty_ret_3d", 
-    #         "nifty_volatility_10d", 
-    #         "nifty_rsi_14",
-    #         # "sector_ret_3d", 
-    #         "sector_volatility_10d", 
-    #         "sector_rsi_14"
-    #     ]
-
-    #     if "5d" in TARGET_TYPE:
-    #         base_features += ["nifty_ret_5d","sector_ret_5d"]
-    #     elif "3d" in TARGET_TYPE:
-    #         base_features += ["nifty_ret_3d","sector_ret_3d"]
-    #     elif "10d" in TARGET_TYPE:
-    #         base_features += ["nifty_ret_10d","sector_ret_10d"]
+    index_features = ["nifty_ret_10d"]
 
 
-    
+    # if include_index_and_sector:
+#     #     base_features += [
+#     #         # "nifty_ret_3d", 
+#     #         "nifty_volatility_10d", 
+#     #         "nifty_rsi_14",
+#     #         # "sector_ret_3d", 
+#     #         "sector_volatility_10d", 
+#     #         "sector_rsi_14"
+#     #     ]
+
+#     #     if "5d" in target_type:
+#     #         base_features += ["nifty_ret_5d","sector_ret_5d"]
+#     #     elif "3d" in target_type:
+#     #         base_features += ["nifty_ret_3d","sector_ret_3d"]
+#     #     elif "10d" in target_type:
+#     #         base_features += ["nifty_ret_10d","sector_ret_10d"]
 
 
-    if peer_name is None:
-        peer_name = []
-    else:
-        base_features += [
-            f"{peer_name}_return_3d",
-            f"{peer_name}_volume_zscore",
-            f"{peer_name}_price_vs_sma_10",
-            f"{peer_name}_breakout_flag_5d"
-        ]
+    final_features = base_features
+    if include_interactions:
+        final_features += interaction_features
+    if include_index_features:
+        final_features += index_features
 
-    ## experiment overriding everything 
-    # base_features =[
-    #                 'market_volatility',
-    #                 'nifty_volatility_10d',
-    #                 'market_momentum_20d',
-    #                 'sector_rsi_14',
-    #                 'sector_ret_3d',
-    #                 'sector_volatility_10d',
-    #                 'market_rsi',
-    #                 'nifty_ret_3d',
-    #                 'nifty_rsi_14',
-    #                 'atr_pct',
-    #                 'volume_zscore',
-    #                 'bb_position',
-    #                 'price_vs_sma_10',
-    #                 'rel_ret_3d',
-    #                 'rsi_14_rank_within_peers',
-    #                 'vix'
+    return final_features
 
-    # ]
 
-    return base_features
-def drop_target_related_columns(target_type):
+def drop_feature_columns(target_type):
+    cols_to_ignore = ["Date", "signal", "target", "rank", 
+        "pred_prob", "pred_value", "final_rank",
+        "market_regime"]
+
     leakage_cols = []
     if target_type.startswith("3d"):
         leakage_cols.append("return_3d")
@@ -283,15 +343,18 @@ def drop_target_related_columns(target_type):
         leakage_cols.append("return_10d")
         if "sector" in target_type:
             leakage_cols.append("sector_ret_10d")  # if target is relative to this
-    return leakage_cols
+    
+    cols_to_ignore += leakage_cols
+
+    return cols_to_ignore
 
 def train_lightgbm(df, ticker):
     df.fillna(method="ffill", inplace=True)
     df = df.sort_values("Date")
 
 
-    feature_cols = get_feature_columns(target_type=TARGET_TYPE, cap_type=CAP_TYPE, peer_name=PEER_NAME)
-    leakage_cols = drop_target_related_columns(target_type=TARGET_TYPE)
+    feature_cols = get_feature_columns(target_type=TARGET_TYPE)
+    leakage_cols = drop_feature_columns(target_type=TARGET_TYPE)
     # extra_leakage_cols = ["target", "sample_weight"]
 
     extra_ignore = ["Date", "pred_prob", "signal", "rank"]
@@ -581,7 +644,6 @@ def add_enriched_features(df, ticker):
     return df
 
 
-
 def get_sector_for_stock(ticker, sector_map_file="sector_mapper.csv"):
     try:
         df_map = pd.read_csv(sector_map_file)
@@ -589,6 +651,8 @@ def get_sector_for_stock(ticker, sector_map_file="sector_mapper.csv"):
         return row["Sector"].values[0] if not row.empty else None
     except:
         return None
+
+
     
 
 def load_index_features(index_name):
@@ -1071,8 +1135,27 @@ def merge_index_features(index_name,df):
         return df
     return df
 
-def merge_sector_features(ticker,df):
-    sector = get_sector_for_stock(ticker)
+# def merge_sector_features(ticker,df):
+#     sector = get_sector_for_stock(ticker)
+
+#     if sector:
+#         sector_df = load_sector_features(sector)
+#         if not sector_df.empty:
+#             sector_df["Date"] = pd.to_datetime(sector_df["Date"])
+#             df = df.merge(sector_df.add_prefix("sector_"), left_on="Date", right_on="sector_Date", how="left").drop(columns=["sector_Date"])
+#             df = df.drop(columns=["sector_Open","sector_High","sector_Low","sector_Close"])
+#             df["rel_return_10d"] = df["return_10d"] - df["sector_ret_10d"]
+#             return df
+#         return df
+#     return df
+
+#     sector_index_file = get_sector_index_path(bucket_name)
+#     df_sector = pd.read_csv(sector_index_file, parse_dates=["Date"])
+
+
+def merge_sector_features(bucket_name,df):
+    sector = get_sector_for_bucket(bucket_name)
+
     if sector:
         sector_df = load_sector_features(sector)
         if not sector_df.empty:
@@ -1083,6 +1166,7 @@ def merge_sector_features(ticker,df):
             return df
         return df
     return df
+
 
 def label_multiclass_excess_return(df):
     """
@@ -1221,4 +1305,47 @@ def analyze_alpha_concentration(df):
         })
 
     return pd.DataFrame(output)
+
+
+def save_model(model,feature_cols, model_dir, bucket_name, model_type):
+    os.makedirs(os.path.join(model_dir, bucket_name), exist_ok=True)
+    outpath = os.path.join(model_dir, bucket_name, f"model_{model_type}.pkl")
+    joblib.dump((model,feature_cols), outpath)
+
+
+def load_and_merge_data(tickers, ohlcv_path, start_date, bucket_name):
+    dfs = []
+    valid_tickers = []
+
+    for ticker in tickers:
+        file_path = os.path.join(ohlcv_path, f"{ticker}.csv")
+        if not os.path.exists(file_path):
+            continue
+        df = pd.read_csv(file_path, parse_dates=["Date"])
+
+        if df["Date"].min() > pd.Timestamp(start_date):
+            print(f"❌ Skipping {ticker}: data starts after {start_date}")
+            continue  # Skip tickers with insufficient history
+
+        df["ticker"] = ticker
+        df = generate_features(df)
+        dfs.append(df)
+        print(f"✅ Added {ticker} to dfs")
+        valid_tickers.append(ticker)
+    print(f"✅ Added {len(valid_tickers)} tickers to dfs")
+    if not dfs:
+        raise ValueError("No valid tickers with sufficient history found!")
+
+    df_all = pd.concat(dfs).sort_values(["ticker", "Date"])
+    df_all = df_all[df_all["Date"] >= start_date]
+
+    # Add sector index
+    df_all = merge_sector_features(bucket_name,df_all)
+
+    # Add NIFTY index
+    df_all = merge_index_features("NIFTY",df_all)
+
+    print(df_all.head())
+
+    return df_all
 
